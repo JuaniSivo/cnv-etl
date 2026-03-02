@@ -34,5 +34,3 @@ def create_driver(headless: bool = False) -> WebDriver:
     options.add_argument("--no-sandbox")
 
     return webdriver.Chrome(options=options)
-
-# driver = webdriver.Chrome(options=webdriver.ChromeOptions())

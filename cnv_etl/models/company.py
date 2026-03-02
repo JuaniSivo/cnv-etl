@@ -1,7 +1,7 @@
 from typing import Dict
 from dataclasses import dataclass, field
 
-from cnv_etl.models.document import FinancialStatement
+from cnv_etl.models.document import Document, FinancialStatement
 
 
 @dataclass

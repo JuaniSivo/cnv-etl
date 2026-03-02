@@ -18,7 +18,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
-from cnv_scraper.scraping.selenium_utils import wait_clickable, wait_present
+from cnv_etl.scraping.selenium_utils import wait_clickable, wait_present
 
 
 class CNVNavigator:
