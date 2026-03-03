@@ -1,12 +1,12 @@
 from typing import Dict
 
 from cnv_etl.models.document import RawFinancialStatement, CleanFinancialStatement, CleanConceptValue
-from cnv_etl.transformers.dates import parse_cnv_date, parse_cnv_datetime
+from cnv_etl.transformers.dates import parse_period_end_date, parse_cnv_datetime
 from cnv_etl.transformers.numeric import parse_cnv_number_to_int, parse_cnv_number_to_float
 from cnv_etl.transformers.taxonomy import map_to_xbrl
 from cnv_etl.transformers.units import get_multiplier
 from cnv_etl.transformers.boolean import parse_cnv_string_to_bool
-from cnv_etl.transformers.literals import parse_cnv_reporting_period, parse_cnv_financial_statements_type
+from cnv_etl.transformers.literals import parse_cnv_reporting_period, parse_cnv_financial_statements_type, parse_accounting_standards_applied
 
 
 def raw_to_clean_financial_statement(raw_fs: RawFinancialStatement) -> CleanFinancialStatement:
@@ -27,11 +27,11 @@ def raw_to_clean_financial_statement(raw_fs: RawFinancialStatement) -> CleanFina
         str(raw_fs.document_description),
         str(raw_fs.document_link),
         parse_cnv_datetime(str(raw_fs.submission_date)),
-        parse_cnv_reporting_period(str(raw_fs.reporting_period)),
-        parse_cnv_date(str(raw_fs.period_end_date)),
-        parse_cnv_financial_statements_type(str(raw_fs.financial_statements_type)),
+        parse_cnv_reporting_period(str(raw_fs.document_description), str(raw_fs.reporting_period)),
+        parse_period_end_date(str(raw_fs.document_description), str(raw_fs.period_end_date)),
+        parse_cnv_financial_statements_type(str(raw_fs.document_description), str(raw_fs.financial_statements_type)),
         str(raw_fs.presentation_currency),
-        str(raw_fs.accounting_standards_applied),
+        parse_accounting_standards_applied(str(raw_fs.document_description), str(raw_fs.accounting_standards_applied)),
         parse_cnv_string_to_bool(str(raw_fs.merger_or_demerger_in_process)),
         parse_cnv_string_to_bool(str(raw_fs.treasury_shares)),
         parse_cnv_string_to_bool(str(raw_fs.insolvency_proceedings)),
