@@ -1,5 +1,6 @@
 from datetime import date
 from typing import List
+from pathlib import Path
 
 from cnv_etl.models.company import Company
 from cnv_etl.models.document import RawFinancialStatement
@@ -9,6 +10,8 @@ from cnv_etl.parsing.documents_table import DocumentsTableParser
 from cnv_etl.parsing.statement_metadata import StatementMetadataParser
 from cnv_etl.parsing.company_metadata import CompanyMetadataParser
 from cnv_etl.parsing.statement_values import StatementValuesParser
+from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statement
+from cnv_etl.loaders.excel import export_company_to_excel
 
 
 def load_financial_statements(
@@ -66,14 +69,22 @@ def load_financial_statements(
 
     # -- TRANSFORM --
 
-    
+    for raw_fs in raw_statements:
+        clean_fs = raw_to_clean_financial_statement(raw_fs)
+        company.add_statement(clean_fs)
 
     # -- LOAD --
 
+    export_company_to_excel(
+        company,
+        Path(f"data/{company.company_ticker}.xlsx")
+    )
+
+
 load_financial_statements(
     Company(30536928703, "Molinos Juan Semino S.A.", "SEMI"),
-    date(2025,1,1),
-    date(2026,1,1),
+    date(2025,12,1),
+    date(2026,3,1),
     [
         "RELAC.: CONTROLADA",
         "NORMA CONTABLE: NCP"

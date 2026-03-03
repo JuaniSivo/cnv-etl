@@ -62,28 +62,27 @@ class RawFinancialStatement(RawDocument):
 
 
 @dataclass
-class Document:
-    document_id: str
+class CleanDocument:
+    document_id: int
     document_description: str
     document_link: str
     submission_date: datetime
 
 
 @dataclass(frozen=True)
-class ConceptValue:
+class CleanConceptValue:
     label: str
     value: float
-    id: int
+    order: int
 
 
 @dataclass
-class FinancialStatement(Document):
+class CleanFinancialStatement(CleanDocument):
     # Statement metadata
     reporting_period: Literal["Annual", "Semester", "Quarter", "Irregular"]
     period_end_date: date
     financial_statements_type: Literal["Separate", "Consolidated"]
     presentation_currency: str
-    unit_of_measure: Literal["Unit", "Thousands", "Millions"]
     accounting_standards_applied: str
 
     # Company metadata
@@ -91,15 +90,13 @@ class FinancialStatement(Document):
     treasury_shares: bool
     insolvency_proceedings: bool
     public_offering_of_equity_instruments: bool
-    subscribed_shares_at_period_end: bool
+    subscribed_shares_at_period_end: int
     equity_share_price_at_period_end: float
-    price_earnings_ratio: float
-    market_capitalization: float
     free_float_percentage: float
     number_of_employees: int
 
     # Statement
-    statement: Dict[str, ConceptValue] = field(default_factory=dict)
+    statement: Dict[str, CleanConceptValue] = field(default_factory=dict)
 
-    def add_concept(self, concept: ConceptValue) -> None:
+    def add_concept(self, concept: CleanConceptValue) -> None:
         self.statement[concept.label] = concept

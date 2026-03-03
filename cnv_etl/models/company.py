@@ -1,7 +1,7 @@
 from typing import Dict
 from dataclasses import dataclass, field
 
-from cnv_etl.models.document import Document, FinancialStatement
+from cnv_etl.models.document import CleanFinancialStatement
 
 
 @dataclass
@@ -9,9 +9,9 @@ class Company:
     company_id: int
     company_name: str
     company_ticker: str
-    statements: Dict[str, FinancialStatement] = field(default_factory=dict)
+    statements: Dict[int, CleanFinancialStatement] = field(default_factory=dict)
     
-    def add_statement(self, statement: FinancialStatement) -> None:
+    def add_statement(self, statement: CleanFinancialStatement) -> None:
         self.statements[statement.document_id] = statement
 
 
