@@ -3,7 +3,7 @@ import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 10
 
 def wait_clickable(driver, by, value, timeout=DEFAULT_TIMEOUT):
     web_element = WebDriverWait(driver, timeout).until(

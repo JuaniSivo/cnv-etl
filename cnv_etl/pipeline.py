@@ -54,9 +54,9 @@ def load_financial_statements(
                 raw_docs.pop(idx)
                 print(f"- Removed {statement_type} document from {date}")
 
-    download = input(f"\nDownload {len(raw_docs)} financial statements? [y/n]: ")
-    if download.lower() == "n":
-        return None
+    # download = input(f"\nDownload {len(raw_docs)} financial statements? [y/n]: ")
+    # if download.lower() == "n":
+    #     return None
 
     # -- EXTRACT & PARSE FINANCIAL STATEMENTS --
 
@@ -93,7 +93,6 @@ def load_financial_statements(
         except Exception as e:
             print(f"  Exception {type(e)}. Couldn't download financial statement for date {date}. Description: {e}")
 
-
     driver.quit()
 
     # -- TRANSFORM --
@@ -114,7 +113,7 @@ def load_financial_statements(
     try:
         export_company_to_excel(
             company,
-            Path(f"data/{company.ticker}.xlsx")
+            Path(f"data/output/{company.ticker}.xlsx")
         )
     except Exception as e:
             print(f"  Exception {type(e)}. Couldn't save company {company.name} to excel. Description: {e}")
@@ -122,15 +121,25 @@ def load_financial_statements(
 
 companies = Companies()
 companies.load_from_excel("data/input/companies.xlsx")
-company = companies.get_by_ticker("SEMI")
 
-load_financial_statements(
-    company,
-    date(2019,1,1),
-    date(2019,3,1),
-    [
-        "RELAC.: CONTROLADA",
-        "NORMA CONTABLE: NCP",
-        "BALANCE SUBSIDIARIA"
-    ]
-)
+for company in companies.by_ticker.values():
+    try:
+        print(f"\n-----------------------------------------------")
+        print(f"Empresa: {company.name}")
+        print(f"Ticker:  {company.ticker}")
+        print(f"-----------------------------------------------\n")
+        load_financial_statements(
+            company,
+            date(2025,1,1),
+            date(2026,3,1),
+            [
+                "RELAC.: CONTROLADA",
+                "RELAC.: CONTROLANTE",
+                "RELAC.: VINCULADA",
+                "NORMA CONTABLE: NCP",
+                "BALANCE SUBSIDIARIA",
+                "OTROS IDIOMAS"
+            ]
+        )
+    except Exception as e:
+        print(f"  Exception {type(e)}. Couldn't end company {company.name} pipeline. Description: {e}")
