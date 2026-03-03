@@ -1,0 +1,181 @@
+# =============================================================================
+# cnv_etl configuration
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Pipeline
+# -----------------------------------------------------------------------------
+
+[pipeline]
+date_from = "2025-01-01"
+date_to   = "2026-03-01"
+
+exclude_keywords = [
+    "RELAC.: CONTROLADA",
+    "RELAC.: CONTROLANTE",
+    "RELAC.: VINCULADA",
+    "NORMA CONTABLE: NCP",
+    "BALANCE SUBSIDIARIA",
+    "OTROS IDIOMAS",
+]
+
+
+# -----------------------------------------------------------------------------
+# Scraping — URLs and XPath selectors
+# -----------------------------------------------------------------------------
+
+[scraping]
+base_url = "https://www.cnv.gov.ar/SitioWeb/Empresas/"
+
+[scraping.xpaths]
+financial_info_menu    = "//a[contains(., 'Información Financiera')]"
+financial_states_menu  = "//a[contains(., 'Estados Contables')]"
+panel_heading          = "//div[@class='panel-heading']//strong[text()='Estados Contables']"
+statement_main_tab     = "//a[contains(., 'Estados Contables Básicos y Principales Índices')]"
+statement_metadata_tab = "//a[contains(., 'Identificación del Balance')]"
+company_metadata_tab   = "//a[contains(., 'Otros Datos')]"
+
+
+# -----------------------------------------------------------------------------
+# Parsing — CNV element IDs
+# -----------------------------------------------------------------------------
+
+[parsing.statement_metadata_ids]
+reporting_period             = "1select18889"
+period_end_date              = "1date17466"
+financial_statements_type    = "1select36921"
+presentation_currency        = "1select22363"
+unit_of_measure              = "1select111599"
+accounting_standards_applied = "1select34258"
+
+[parsing.company_metadata_ids]
+merger_or_demerger_in_process          = "1select99591"
+treasury_shares                        = "1select21271"
+insolvency_proceedings                 = "1select18901"
+public_offering_of_equity_instruments  = "1select496788"
+subscribed_shares_at_period_end        = "1decimal21466"
+equity_share_price_at_period_end       = "1decimal61378"
+price_earnings_ratio                   = "1decimal42743"
+market_capitalization                  = "1decimal17252"
+free_float_percentage                  = "1decimal46286"
+number_of_employees                    = ["1textbox16696", "1decimal20806"]
+
+
+# -----------------------------------------------------------------------------
+# Transformers — mapping tables
+# -----------------------------------------------------------------------------
+
+[transformers.units]
+"Unit"         = 1
+"$"            = 1
+"Thousands"    = 1_000
+"Miles de $"   = 1_000
+"Millions"     = 1_000_000
+"Millones de $" = 1_000_000
+
+[transformers.boolean]
+true_values  = ["Si", "Sí"]
+false_values = ["No"]
+
+[transformers.reporting_period]
+"ANUAL"      = "Annual"
+"1"          = "Annual"
+"SEMESTRAL"  = "Semester"
+"2"          = "Semester"
+"TRIMESTRAL" = "Quarter"
+"3"          = "Quarter"
+"IRREGULAR"  = "Irregular"
+
+[transformers.statement_type]
+"INDIVIDUAL"   = "Separate"
+"CONSOLIDADO"  = "Consolidated"
+
+[transformers.accounting_standard]
+"NIIF"                        = "IFRS"
+"RT"                          = "Argentine GAAP (RT)"
+"NORMAS CONTABLES PROFESIONALES" = "Argentine GAAP"
+
+[transformers.taxonomy]
+"EFECTIVO Y EQUIVALENTES A EFECTIVO"                                               = "CashAndCashEquivalents"
+"ACTIVOS FINANCIEROS CORRIENTES"                                                   = "CurrentFinancialAssets"
+"CUENTAS POR COBRAR CORRIENTES"                                                    = "CurrentTradeAndOtherReceivables"
+"OTROS ACTIVOS NO FINANCIEROS CORRIENTES"                                          = "OtherCurrentNonFinancialAssets"
+"INVENTARIOS CORRIENTES"                                                           = "Inventories"
+"ACTIVO CORRIENTE"                                                                 = "CurrentAssets"
+"ACTIVOS FINANCIEROS NO CORRIENTES"                                                = "NonCurrentFinancialAssets"
+"CUENTAS POR COBRAR NO CORRIENTES"                                                 = "NonCurrentTradeAndOtherReceivables"
+"PROPIEDADES PLANTAS Y EQUIPOS"                                                    = "PropertyPlantAndEquipment"
+"OTROS ACTIVOS NO FINANCIEROS NO CORRIENTES"                                       = "OtherNonCurrentNonFinancialAssets"
+"ACTIVOS INTANGIBLES"                                                              = "IntangibleAssets"
+"ACTIVO NO CORRIENTE"                                                              = "NonCurrentAssets"
+"TOTAL DEL ACTIVO"                                                                 = "Assets"
+"CAPITAL"                                                                          = "IssuedCapital"
+"AJUSTE DE CAPITAL"                                                                = "CapitalAdjustment"
+"APORTES NO CAPITALIZADOS O CONTRIBUCIONES DE CAPITAL"                             = "ContributionsReceivedForFutureShareIssues"
+"OTROS CONCEPTOS DEL CAPITAL"                                                      = "OtherEquityInterests"
+"RESERVA LEGAL"                                                                    = "LegalReserve"
+"OTRAS RESERVAS"                                                                   = "OtherReserves"
+"GANANCIAS RESERVADAS"                                                             = "RetainedEarnings"
+"INTERESES NO CONTROLANTES"                                                        = "NonControllingInterests"
+"RESULTADOS NO ASIGNADOS"                                                          = "AccumulatedResults"
+"RESULTADOS INTEGRALES"                                                            = "ComprehensiveIncome"
+"TOTAL PATRIMONIO NETO"                                                            = "Equity"
+"PASIVOS FINANCIEROS CORRIENTES"                                                   = "CurrentFinancialLiabilities"
+"CUENTAS POR PAGAR CORRIENTES"                                                     = "CurrentTradeAndOtherPayables"
+"PASIVOS POR IMPUESTOS CORRIENTES"                                                 = "CurrentTaxLiabilities"
+"OTROS PASIVOS NO FINANCIEROS CORRIENTES"                                          = "OtherCurrentNonFinancialLiabilities"
+"PASIVO CORRIENTE"                                                                 = "CurrentLiabilities"
+"PASIVOS FINANCIEROS NO CORRIENTES"                                                = "NonCurrentFinancialLiabilities"
+"CUENTAS POR PAGAR NO CORRIENTES"                                                  = "NonCurrentTradeAndOtherPayables"
+"PASIVOS POR IMPUESTOS NO CORRIENTES"                                              = "NonCurrentTaxLiabilities"
+"OTROS PASIVOS NO FINANCIEROS NO CORRIENTES"                                       = "OtherNonCurrentNonFinancialLiabilities"
+"PASIVO NO CORRIENTE"                                                              = "NonCurrentLiabilities"
+"TOTAL DEL PASIVO"                                                                 = "Liabilities"
+"TOTAL DEL PASIVO Y PATRIMONIO NETO"                                               = "LiabilitiesAndEquity"
+"INGRESOS DE ACTIVIDADES ORDINARIAS"                                               = "Revenue"
+"COSTO DE VENTAS Y/O SERVICIOS"                                                    = "CostOfSales"
+"GANANCIA (PERDIDA) BRUTA"                                                         = "GrossProfit"
+"HONORARIOS A DIRECTORES Y SINDICOS"                                               = "DirectorsAndStatutoryAuditorsFees"
+"OTROS GASTOS DE ADMINISTRACION"                                                   = "AdministrativeExpenses"
+"GASTOS DE COMERCIALIZACION Y/O DISTRIBUCION"                                      = "SellingAndDistributionExpenses"
+"OTROS GASTOS OPERATIVOS"                                                          = "OtherOperatingExpenses"
+"OTROS INGRESOS"                                                                   = "OtherIncome"
+"DEPRECIACIONES Y AMORTIZACIONES"                                                  = "DepreciationAndAmortisation"
+"GANANCIA (PERDIDA) DE ACTIVIDADES OPERATIVAS"                                     = "OperatingProfitLoss"
+"INGRESOS FINANCIEROS"                                                             = "FinanceIncome"
+"COSTOS FINANCIEROS"                                                               = "FinanceCosts"
+"RECPAM"                                                                           = "MonetaryPositionGainLoss"
+"OTROS RESULTADOS"                                                                 = "OtherGainsLosses"
+"GANANCIA (PERDIDA) ANTES DE IMPUESTOS"                                            = "ProfitLossBeforeTax"
+"INGRESO (GASTO) POR IMPUESTOS A LAS GANANCIAS"                                    = "IncomeTaxExpense"
+"GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO OPERACIONES CONTINUADAS"               = "ProfitLossFromContinuingOperations"
+"GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO OPERACIONES DISCONTINUADAS"            = "ProfitLossFromDiscontinuedOperations"
+"GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO"                                       = "ProfitLoss"
+"OTRO RESULTADO INTEGRAL DEL EJERCICIO / PERIODO"                                  = "OtherComprehensiveIncome"
+"RESULTADO INTEGRAL TOTAL DEL EJERCICIO / PERIODO"                                 = "TotalComprehensiveIncome"
+"TOTAL CAMBIOS EN ACTIVOS Y PASIVOS OPERATIVOS"                                    = "CashFlowsFromOperatingActivities"
+"TOTAL DE ACTIVIDADES DE INVERSION"                                                = "CashFlowsFromInvestingActivities"
+"TOTAL DE ACTIVIDADES DE FINANCIACION"                                             = "CashFlowsFromFinancingActivities"
+"INCREMENTO (DISMINUCION) NETA DE EFECTIVO Y EQUIVALENTES"                         = "IncreaseDecreaseInCashAndCashEquivalents"
+"GANANCIA (PERDIDA) BASICA POR ACCION"                                             = "BasicEarningsLossPerShare"
+"GANANCIAS (PERDIDA) DILUIDA POR ACCION"                                           = "DilutedEarningsLossPerShare"
+"TOTAL PATRIMONIO NETO DEL EJERCICIO ANTERIOR"                                     = "EquityPreviousPeriod"
+"EBIT"                                                                             = "EBIT"
+"EBITDA"                                                                           = "EBITDA"
+"CAPITAL DE TRABAJO"                                                               = "WorkingCapital"
+"LIQUIDEZ"                                                                         = "CurrentRatio"
+"SOLVENCIA"                                                                        = "SolvencyRatio"
+"INMOVILIZACION DEL CAPITAL"                                                       = "CapitalEmployed"
+"RENTABILIDAD PATRIMONIO NETO"                                                     = "ReturnOnEquity"
+"RENTABILIDAD DEL ACTIVO"                                                          = "ReturnOnAssets"
+"ENDEUDAMIENTO"                                                                    = "DebtRatio"
+"ENDEUDAMIENTO A CORTO PLAZO"                                                      = "ShortTermDebtRatio"
+"APALANCAMIENTO"                                                                   = "LeverageRatio"
+"MARGEN NETO / VENTAS"                                                             = "NetProfitMargin"
+"DEUDA FINANCIERA / EBITDA"                                                        = "NetDebtToEBITDA"
+"EBITDA / COSTOS FINANCIEROS"                                                      = "EBITDAToFinanceCosts"
+"ANALISIS DU-PONT"                                                                 = "DuPontAnalysis"
+"PRUEBA ACIDA"                                                                     = "QuickRatio"
+"COBERTURA DE GASTOS FINANCIEROS"                                                  = "InterestCoverageRatio"
+"ROTACION DE ACTIVOS"                                                              = "AssetTurnover"
