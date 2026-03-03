@@ -1,15 +1,28 @@
+from typing import List
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
+from selenium.common.exceptions import NoSuchElementException
 
 
-def get_value(driver, element_id: str) -> str:
-    try:
-        el = driver.find_element(By.ID, element_id)
-        value = str(el.get_attribute("value"))
-        value = value.strip()
-    except Exception as e:
-        print(f"Exception occured when getting value from element id {element_id}. Asigned empty string. Exception: {e}")
-        value = ""
+def get_value(driver, elements_id: List[str] | str) -> str:
+    if isinstance(elements_id, str):
+        elements_id = [elements_id]
+    
+    value = ""
+    for element_id in elements_id:
+        try:
+            el = driver.find_element(By.ID, element_id)
+            value = str(el.get_attribute("value"))
+            value = value.strip()
+        except NoSuchElementException as e:
+            print(f"  Exception {type(e)}. No element with id: {element_id}. Asigned empty string")
+        except Exception as e:
+            print(f"  Exception {type(e)}. Exception occured when getting value from element id {element_id}. Asigned empty string. Description: {e}")
+            value = ""
+        
+        if value != "":
+            return value
 
     return value
 

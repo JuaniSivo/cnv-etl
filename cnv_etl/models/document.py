@@ -5,10 +5,10 @@ from typing import Optional, Literal, Dict, List
 
 @dataclass
 class RawDocument:
-    document_id: Optional[str] = None
-    document_description: Optional[str] = None
-    document_link: Optional[str] = None
-    submission_date: Optional[str] = None
+    document_id: str
+    document_description: str
+    document_link: str
+    submission_date: str
 
 
 @dataclass(frozen=True)
@@ -20,8 +20,6 @@ class RawConceptValue:
 
 @dataclass
 class RawFinancialStatement(RawDocument):
-    document_id: Optional[str] = None
-
     # Statement metadata
     reporting_period: Optional[str] = None
     period_end_date: Optional[str] = None

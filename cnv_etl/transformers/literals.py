@@ -25,7 +25,7 @@ ACCOUNTING_STANDARD_MAP: Dict[str, Literal["IFRS", "Argentine GAAP (RT)", "Argen
 }
 
 
-def parse_cnv_reporting_period(document_description: str, reporting_period: str) -> Literal["Annual", "Semester", "Quarter", "Irregular"]:
+def parse_reporting_period(document_description: str, reporting_period: str) -> Literal["Annual", "Semester", "Quarter", "Irregular"]:
     period_from_description = parse_reporting_period_from_description(document_description)
     period_from_statement_metadata = parse_reporting_period_from_metadata(reporting_period)
 
@@ -56,7 +56,7 @@ def parse_reporting_period_from_description(description: str) -> Optional[Litera
         - "PERIODICIDAD: ANUAL"
         """
         # Pattern: PERIODICIDAD: <value>
-        match = re.search(r'PERIODICIDAD:\s*(\w+)', description)
+        match = re.search(r'PERIODICIDAD\s*:\s*(\w+)', description)
         if match:
             value = match.group(1).strip()
             return REPORTING_PERIOD_MAP.get(value)
@@ -64,7 +64,7 @@ def parse_reporting_period_from_description(description: str) -> Optional[Litera
         return None
 
 
-def parse_cnv_financial_statements_type(document_description: str, financial_statements_type: str) -> Literal["Separate", "Consolidated"]:
+def parse_financial_statements_type(document_description: str, financial_statements_type: str) -> Literal["Separate", "Consolidated"]:
     type_from_description = parse_statements_type_from_description(document_description)
     type_from_statement_metadata = parse_statements_type_from_statement_metadata(financial_statements_type)
 
@@ -94,7 +94,7 @@ def parse_statements_type_from_description(description: str) -> Optional[Literal
         - "TIPO BALANCE: CONSOLIDADO"
         """
         # Pattern: TIPO BALANCE: <value>
-        match = re.search(r'TIPO BALANCE:\s*(\w+)', description)
+        match = re.search(r'TIPO\s+BALANCE\s*:\s*(\w+)', description)
         if match:
             value = match.group(1).strip()
             return STATEMENT_TYPE_MAP.get(value)
@@ -132,7 +132,7 @@ def parse_accounting_standard_from_description(description: str) -> Optional[Lit
         - "NORMA CONTABLE: RT"
         """
         # Pattern: NORMA CONTABLE: <value>
-        match = re.search(r'NORMA CONTABLE:\s*([A-Z\s]+?)(?:\s*-|$)', description)
+        match = re.search(r'NORMA\s+CONTABLE\s*:\s*([A-Z\s]+?)(?:\s*-|$)', description)
         if match:
             value = match.group(1).strip()
             return ACCOUNTING_STANDARD_MAP.get(value)

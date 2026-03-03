@@ -24,7 +24,7 @@ def parse_period_end_date_from_description(document_description: str) -> Optiona
         - "FECHA CIERRE: 2024-12-31"
         """
         # Pattern: FECHA CIERRE: YYYY-MM-DD
-        match = re.search(r'FECHA CIERRE:\s*(\d{4})-(\d{2})-(\d{2})', document_description)
+        match = re.search(r'FECHA\s+CIERRE\s*:\s*(\d{4})-(\d{2})-(\d{2})', document_description)
         if match:
             year = int(match.group(1))
             month = int(match.group(2))

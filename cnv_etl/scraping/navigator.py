@@ -117,7 +117,6 @@ class CNVNavigator:
                     By.XPATH,
                     "//a[contains(., 'Estados Contables Básicos y Principales Índices')]"
                 ).click()
-                print(f"Opened {link}")
                 return
             except ElementClickInterceptedException:
                 time.sleep(RETRY_DELAY)

@@ -18,7 +18,7 @@ class CompanyMetadataParser:
             price_earnings_ratio = get_value(driver, "1decimal42743"),
             market_capitalization = get_value(driver, "1decimal17252"),
             free_float_percentage = get_value(driver, "1decimal46286"),
-            number_of_employees = get_value(driver, "1textbox16696")
+            number_of_employees = get_value(driver, ["1textbox16696", "1decimal20806"])
         )
 
         return parsed_fs
