@@ -2,7 +2,7 @@ from datetime import date
 from typing import List
 from pathlib import Path
 
-from cnv_etl.models.company import Company
+from cnv_etl.models.company import Company, Companies
 from cnv_etl.models.document import RawFinancialStatement
 from cnv_etl.scraping.session import create_driver
 from cnv_etl.scraping.navigator import CNVNavigator
@@ -27,7 +27,7 @@ def load_financial_statements(
     navigator = CNVNavigator(driver)
 
     header, rows = navigator.open_documents_table(
-        str(company.company_id),
+        str(company.id),
         date_from,
         date_to
     )
@@ -77,12 +77,16 @@ def load_financial_statements(
 
     export_company_to_excel(
         company,
-        Path(f"data/{company.company_ticker}.xlsx")
+        Path(f"data/{company.ticker}.xlsx")
     )
 
 
+companies = Companies()
+companies.load_from_excel("data/input/companies.xlsx")
+company = companies.get_by_ticker("SEMI")
+
 load_financial_statements(
-    Company(30536928703, "Molinos Juan Semino S.A.", "SEMI"),
+    company,
     date(2025,12,1),
     date(2026,3,1),
     [

@@ -43,8 +43,9 @@ class ExcelExporter:
         self.wb.remove(self.wb.active)  # Remove default sheet
         
         # Write sheets
-        self._write_metadata_sheet(company)
-        self._write_values_sheet(company.statements)
+        self._write_company_metadata_sheet(company)
+        self._write_statement_metadata_sheet(company)
+        self._write_statement_values_sheet(company.statements)
         
         # Save
         self.wb.save(output_path)
@@ -52,18 +53,39 @@ class ExcelExporter:
         
         return output_path
     
-    def _write_metadata_sheet(
+    def _write_company_metadata_sheet(
         self,
         company: Company
     ) -> None:
         """Write metadata sheet with one row per statement."""
-        ws = self.wb.create_sheet("metadata")
+        ws = self.wb.create_sheet("company_metadata")
+        
+        # Define rows
+        rows = [
+            ("id", company.id),
+            ("name", company.name),
+            ("ticker", company.ticker),
+            ("description", company.description),
+            ("sector", company.sector),
+            ("industry_group", company.industry_group),
+            ("industry", company.industry),
+            ("sub_industry", company.sub_industry),
+            ("sub_industry_description", company.sub_industry_description)
+        ]
+                
+        # Write data rows
+        for row_idx, row_data in enumerate(rows, start=1):
+            self._write_data_row(ws, row_idx, row_data)
+    
+    def _write_statement_metadata_sheet(
+        self,
+        company: Company
+    ) -> None:
+        """Write metadata sheet with one row per statement."""
+        ws = self.wb.create_sheet("statement_metadata")
         
         # Define columns
         columns = [
-            ("company_id", 15),
-            ("company_name", 30),
-            ("company_ticker", 15),
             ("document_id", 15),
             ("document_description", 100),
             ("submission_date", 20),
@@ -91,9 +113,6 @@ class ExcelExporter:
         # Write data rows
         for row_idx, stmt in enumerate(company.statements.values(), start=2):
             row_data = [
-                company.company_id,
-                company.company_name,
-                company.company_ticker,
                 stmt.document_id,
                 stmt.document_description,
                 stmt.submission_date,
@@ -116,12 +135,12 @@ class ExcelExporter:
         # Freeze header row
         ws.freeze_panes = 'A2'
     
-    def _write_values_sheet(
+    def _write_statement_values_sheet(
         self,
         statements: Dict[int, CleanFinancialStatement]
     ) -> None:
         """Write values sheet with all statement lines."""
-        ws = self.wb.create_sheet("values")
+        ws = self.wb.create_sheet("statement_values")
         
         # Define columns
         columns = [
