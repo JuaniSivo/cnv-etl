@@ -49,6 +49,54 @@ def _fetch_raw_documents(
     return raw_docs
 
 
+def _download_statements(raw_docs: List[RawDocument]) -> List[RawFinancialStatement]:
+    """
+    Open a Selenium session and download each raw financial statement
+    from the CNV website.
+    """
+    driver    = create_driver()
+    navigator = CNVNavigator(driver)
+
+    raw_statements: List[RawFinancialStatement] = []
+
+    try:
+        for i, raw_doc in enumerate(raw_docs, start=1):
+            raw_fs = RawFinancialStatement(
+                raw_doc.document_id,
+                raw_doc.document_description,
+                raw_doc.document_link,
+                raw_doc.submission_date
+            )
+
+            fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
+            fs_type     = parse_statements_type_from_description(raw_doc.document_description)
+            logger.info(f"  {i}/{len(raw_docs)} Downloading {fs_end_date} - {fs_type}")
+            logger.debug(f"  Link: {raw_doc.document_link}")
+
+            try:
+                navigator.open_statement(raw_fs.document_link)
+
+                navigator.open_statement_metadata_tab()
+                raw_fs = StatementMetadataParser().parse(driver, raw_fs)
+
+                navigator.open_company_metadata_tab()
+                raw_fs = CompanyMetadataParser().parse(driver, raw_fs)
+
+                navigator.open_statement_values_tab()
+                raw_fs = StatementValuesParser().parse(driver, raw_fs)
+
+                raw_statements.append(raw_fs)
+            except Exception as e:
+                logger.error(
+                    f"Couldn't download statement for date {fs_end_date}. "
+                    f"{type(e).__name__}: {e}"
+                )
+    finally:
+        driver.quit()
+
+    return raw_statements
+
+
 def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
     """
     For each period end date, keep only one document using these rules:
