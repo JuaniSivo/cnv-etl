@@ -4,11 +4,10 @@ from dataclasses import dataclass, field, fields
 
 from openpyxl import load_workbook
 
+from cnv_etl.models.document import CleanFinancialStatement
 from cnv_etl.logging_config import get_logger
 
 logger = get_logger(__name__)
-
-from cnv_etl.models.document import CleanFinancialStatement
 
 
 @dataclass

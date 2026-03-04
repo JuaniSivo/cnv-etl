@@ -4,7 +4,7 @@ from pathlib import Path
 
 from cnv_etl.logging_config import setup_logging, get_logger
 from cnv_etl.models.company import Company, Companies
-from cnv_etl.models.document import RawFinancialStatement, CleanFinancialStatement
+from cnv_etl.models.document import RawFinancialStatement, CleanFinancialStatement, RawDocument
 from cnv_etl.scraping.session import create_driver
 from cnv_etl.scraping.navigator import CNVNavigator
 from cnv_etl.parsing.documents_table import DocumentsTableParser
@@ -12,12 +12,10 @@ from cnv_etl.parsing.statement_metadata import StatementMetadataParser
 from cnv_etl.parsing.company_metadata import CompanyMetadataParser
 from cnv_etl.parsing.statement_values import StatementValuesParser
 from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statement
-from cnv_etl.transformers.dates import parse_period_end_date_from_description
+from cnv_etl.transformers.dates import parse_period_end_date_from_description, parse_cnv_datetime
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
-from cnv_etl.models.document import RawDocument
-from cnv_etl.transformers.dates import parse_cnv_datetime
 
 setup_logging()
 logger = get_logger(__name__)
