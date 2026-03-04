@@ -4,7 +4,7 @@ from pathlib import Path
 
 from cnv_etl.logging_config import setup_logging, get_logger
 from cnv_etl.models.company import Company, Companies
-from cnv_etl.models.document import RawFinancialStatement
+from cnv_etl.models.document import RawFinancialStatement, CleanFinancialStatement
 from cnv_etl.scraping.session import create_driver
 from cnv_etl.scraping.navigator import CNVNavigator
 from cnv_etl.parsing.documents_table import DocumentsTableParser
@@ -21,6 +21,30 @@ from cnv_etl.transformers.dates import parse_cnv_datetime
 
 setup_logging()
 logger = get_logger(__name__)
+
+
+def _transform_statements(
+    raw_statements: List[RawFinancialStatement]
+) -> List[CleanFinancialStatement]:
+    """
+    Transform raw financial statements into clean domain objects.
+    Logs and skips any statement that fails transformation.
+    """
+    clean_statements: List[CleanFinancialStatement] = []
+
+    for raw_fs in raw_statements:
+        try:
+            clean_fs = raw_to_clean_financial_statement(raw_fs)
+            clean_statements.append(clean_fs)
+            logger.debug(f"  Transformed statement '{raw_fs.document_description}'")
+        except Exception as e:
+            logger.error(
+                f"Couldn't transform statement '{raw_fs.document_description}'. "
+                f"{type(e).__name__}: {e}"
+            )
+
+    logger.info(f"Transformed {len(clean_statements)}/{len(raw_statements)} statements")
+    return clean_statements
 
 
 def _fetch_raw_documents(
