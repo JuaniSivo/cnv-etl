@@ -16,9 +16,52 @@ from cnv_etl.transformers.dates import parse_period_end_date_from_description
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
+from cnv_etl.models.document import RawDocument
+from cnv_etl.transformers.dates import parse_cnv_datetime
 
 setup_logging()
 logger = get_logger(__name__)
+
+
+def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
+    """
+    For each period end date, keep only one document using these rules:
+      1. Prefer Consolidated over Separate.
+      2. Among documents of the same type, keep the most recent submission date.
+
+    Documents with no parseable period end date are always kept as-is.
+    """
+    # Separate documents with no parseable date — they are never deduplicated
+    undated = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is None]
+    dated   = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is not None]
+
+    # Group by period end date
+    groups: dict = {}
+    for doc in dated:
+        key = parse_period_end_date_from_description(doc.document_description)
+        groups.setdefault(key, []).append(doc)
+
+    kept = []
+    for period_date, docs in groups.items():
+        if len(docs) == 1:
+            kept.append(docs[0])
+            continue
+
+        # Prefer Consolidated; fall back to Separate if none exist
+        consolidated = [d for d in docs if parse_statements_type_from_description(d.document_description) == "Consolidated"]
+        candidates   = consolidated if consolidated else docs
+
+        # Among candidates, pick the most recent submission date
+        winner = max(candidates, key=lambda d: parse_cnv_datetime(d.submission_date))
+
+        removed = [d for d in docs if d is not winner]
+        for doc in removed:
+            stmt_type = parse_statements_type_from_description(doc.document_description)
+            logger.info(f"  Removed {stmt_type} document from {period_date} (submission: {doc.submission_date})")
+
+        kept.append(winner)
+
+    return undated + kept
 
 
 def load_financial_statements(
@@ -47,17 +90,7 @@ def load_financial_statements(
     # -- CLEAN DOCUMENTS --
 
     logger.info("--- DEDUPLICATING DOCUMENTS ---")
-    end_dates = [parse_period_end_date_from_description(d.document_description) for d in raw_docs]
-    for idx, raw_doc in enumerate(raw_docs):
-        fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
-        if fs_end_date is None:
-            continue
-
-        if end_dates.count(fs_end_date) > 1:
-            statement_type = parse_statements_type_from_description(raw_doc.document_description)
-            if statement_type == "Separate":
-                raw_docs.pop(idx)
-                logger.info(f"  Removed {statement_type} document from {fs_end_date}")
+    raw_docs = _deduplicate_documents(raw_docs)
 
     # -- EXTRACT & PARSE FINANCIAL STATEMENTS --
 
@@ -120,7 +153,7 @@ def load_financial_statements(
     try:
         export_company_to_excel(
             company,
-            Path(f"data/{company.ticker}.xlsx")
+            Path(f"data/output/{company.ticker}.xlsx")
         )
     except Exception as e:
         logger.error(
@@ -132,7 +165,7 @@ def load_financial_statements(
 companies = Companies()
 companies.load_from_excel("data/input/companies.xlsx")
 
-for company in list(companies.by_ticker.values())[:1]:
+for company in companies.by_ticker.values():
     logger.info(f"-----------------------------------------------")
     logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
     logger.info(f"-----------------------------------------------")
