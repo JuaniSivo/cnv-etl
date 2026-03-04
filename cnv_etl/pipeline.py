@@ -14,6 +14,7 @@ from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statemen
 from cnv_etl.transformers.dates import parse_period_end_date_from_description
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
+from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
 
 
 def load_financial_statements(
@@ -42,21 +43,17 @@ def load_financial_statements(
     # -- CLEAN DOCUMENTS --
 
     print("\n--- DOCUMENTS REMOVED ---\n")
-    dates = [parse_period_end_date_from_description(raw_doc.document_description) for raw_doc in raw_docs]
+    end_dates = [parse_period_end_date_from_description(raw_doc.document_description) for raw_doc in raw_docs]
     for idx, raw_doc in enumerate(raw_docs):
-        date = parse_period_end_date_from_description(raw_doc.document_description)
-        if date is None:
+        fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
+        if fs_end_date is None:
             continue
 
-        if dates.count(date) > 1:
+        if end_dates.count(fs_end_date) > 1:
             statement_type = parse_statements_type_from_description(raw_doc.document_description)
             if statement_type == "Separate":
                 raw_docs.pop(idx)
-                print(f"- Removed {statement_type} document from {date}")
-
-    # download = input(f"\nDownload {len(raw_docs)} financial statements? [y/n]: ")
-    # if download.lower() == "n":
-    #     return None
+                print(f"- Removed {statement_type} document from {fs_end_date}")
 
     # -- EXTRACT & PARSE FINANCIAL STATEMENTS --
 
@@ -73,9 +70,9 @@ def load_financial_statements(
             raw_doc.submission_date
         )
 
-        fs_date = parse_period_end_date_from_description(raw_doc.document_description)
-        fs_type = parse_statements_type_from_description(raw_doc.document_description)
-        print(f"{i}. {fs_date} - {fs_type} - {raw_doc.document_link}")
+        fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
+        fs_type     = parse_statements_type_from_description(raw_doc.document_description)
+        print(f"{i}. {fs_end_date} - {fs_type} - {raw_doc.document_link}")
 
         try:
             navigator.open_statement(raw_fs.document_link)
@@ -91,7 +88,7 @@ def load_financial_statements(
 
             raw_statements.append(raw_fs)
         except Exception as e:
-            print(f"  Exception {type(e)}. Couldn't download financial statement for date {date}. Description: {e}")
+            print(f"  Exception {type(e)}. Couldn't download financial statement for date {fs_end_date}. Description: {e}")
 
     driver.quit()
 
@@ -104,7 +101,7 @@ def load_financial_statements(
             clean_fs = raw_to_clean_financial_statement(raw_fs)
             company.add_statement(clean_fs)
         except Exception as e:
-            print(f"  Exception {type(e)}. Couldn't load clean financial statement for date {date}. Description: {e}")
+            print(f"  Exception {type(e)}. Couldn't transform financial statement. Description: {e}")
 
     # -- LOAD --
 
@@ -116,7 +113,7 @@ def load_financial_statements(
             Path(f"data/output/{company.ticker}.xlsx")
         )
     except Exception as e:
-            print(f"  Exception {type(e)}. Couldn't save company {company.name} to excel. Description: {e}")
+        print(f"  Exception {type(e)}. Couldn't save company {company.name} to excel. Description: {e}")
 
 
 companies = Companies()
@@ -130,16 +127,9 @@ for company in companies.by_ticker.values():
         print(f"-----------------------------------------------\n")
         load_financial_statements(
             company,
-            date(2025,1,1),
-            date(2026,3,1),
-            [
-                "RELAC.: CONTROLADA",
-                "RELAC.: CONTROLANTE",
-                "RELAC.: VINCULADA",
-                "NORMA CONTABLE: NCP",
-                "BALANCE SUBSIDIARIA",
-                "OTROS IDIOMAS"
-            ]
+            PIPELINE_DATE_FROM,
+            PIPELINE_DATE_TO,
+            EXCLUDE_KEYWORDS
         )
     except Exception as e:
         print(f"  Exception {type(e)}. Couldn't end company {company.name} pipeline. Description: {e}")
