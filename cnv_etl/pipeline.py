@@ -226,20 +226,21 @@ def load_financial_statements(
     FinancialStatementPipeline(date_from, date_to, exclude).run(company)
 
 
-companies = Companies()
-companies.load_from_excel("data/input/companies.xlsx")
+if __name__ == "__main__":
+    companies = Companies()
+    companies.load_from_excel("data/input/companies.xlsx")
 
-pipeline = FinancialStatementPipeline(
-    date_from=PIPELINE_DATE_FROM,
-    date_to=PIPELINE_DATE_TO,
-    exclude=EXCLUDE_KEYWORDS
-)
+    pipeline = FinancialStatementPipeline(
+        date_from=PIPELINE_DATE_FROM,
+        date_to=PIPELINE_DATE_TO,
+        exclude=EXCLUDE_KEYWORDS
+    )
 
-for company in companies:
-    try:
-        pipeline.run(company)
-    except Exception as e:
-        logger.error(
-            f"Pipeline failed for {company.name}. "
-            f"{type(e).__name__}: {e}"
-        )
+    for company in companies:
+        try:
+            pipeline.run(company)
+        except Exception as e:
+            logger.error(
+                f"Pipeline failed for {company.name}. "
+                f"{type(e).__name__}: {e}"
+            )
