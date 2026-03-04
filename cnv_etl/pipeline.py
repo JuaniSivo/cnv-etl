@@ -23,6 +23,32 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+def _fetch_raw_documents(
+    company: Company,
+    date_from: date,
+    date_to: date,
+    exclude: List[str]
+) -> List[RawDocument]:
+    """
+    Open a Selenium session, navigate to the company's documents table
+    and return the filtered list of raw documents.
+    """
+    driver    = create_driver()
+    navigator = CNVNavigator(driver)
+
+    try:
+        header, rows = navigator.open_documents_table(str(company.id), date_from, date_to)
+        raw_docs = DocumentsTableParser().parse(header, rows, exclude)
+    finally:
+        driver.quit()
+
+    logger.info(f"Found {len(raw_docs)} documents for {company.ticker}")
+    for i, doc in enumerate(raw_docs, start=1):
+        logger.info(f"  {i}. {doc.document_description}")
+
+    return raw_docs
+
+
 def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
     """
     For each period end date, keep only one document using these rules:
