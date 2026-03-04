@@ -162,120 +162,84 @@ def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
     return undated + kept
 
 
+class FinancialStatementPipeline:
+    """
+    Orchestrates the full ETL pipeline for a single company:
+      1. Fetch raw documents list from CNV
+      2. Deduplicate by period end date
+      3. Download each financial statement
+      4. Transform raw statements into clean domain objects
+      5. Load clean statements into the company and export to Excel
+    """
+
+    def __init__(
+        self,
+        date_from: date,
+        date_to: date,
+        exclude: List[str]
+    ) -> None:
+        self.date_from = date_from
+        self.date_to   = date_to
+        self.exclude   = exclude
+
+    def run(self, company: Company) -> None:
+        logger.info("-----------------------------------------------")
+        logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
+        logger.info("-----------------------------------------------")
+
+        logger.info("--- FETCHING DOCUMENTS ---")
+        raw_docs = _fetch_raw_documents(company, self.date_from, self.date_to, self.exclude)
+
+        logger.info("--- DEDUPLICATING DOCUMENTS ---")
+        raw_docs = _deduplicate_documents(raw_docs)
+
+        logger.info("--- DOWNLOADING STATEMENTS ---")
+        raw_statements = _download_statements(raw_docs)
+
+        logger.info("--- TRANSFORMING STATEMENTS ---")
+        clean_statements = _transform_statements(raw_statements)
+
+        logger.info("--- LOADING INTO COMPANY ---")
+        for clean_fs in clean_statements:
+            company.add_statement(clean_fs)
+
+        logger.info("--- SAVING TO EXCEL ---")
+        try:
+            export_company_to_excel(
+                company,
+                Path(f"data/output/{company.ticker}.xlsx")
+            )
+        except Exception as e:
+            logger.error(
+                f"Couldn't save company {company.name} to Excel. "
+                f"{type(e).__name__}: {e}"
+            )
+
+
 def load_financial_statements(
     company: Company,
     date_from: date,
     date_to: date,
     exclude: List[str] = list()
 ) -> None:
-
-    # -- EXTRACT & PARSE DOCUMENTS --
-
-    driver = create_driver()
-    navigator = CNVNavigator(driver)
-
-    header, rows = navigator.open_documents_table(
-        str(company.id),
-        date_from,
-        date_to
-    )
-    raw_docs = DocumentsTableParser().parse(header, rows, exclude)
-
-    logger.info("--- DOCUMENTS FOUND ---")
-    for i, raw_doc in enumerate(raw_docs):
-        logger.info(f"  {i+1}. {raw_doc.document_description}")
-
-    # -- CLEAN DOCUMENTS --
-
-    logger.info("--- DEDUPLICATING DOCUMENTS ---")
-    raw_docs = _deduplicate_documents(raw_docs)
-
-    # -- EXTRACT & PARSE FINANCIAL STATEMENTS --
-
-    logger.info("--- DOWNLOADING FINANCIAL STATEMENTS ---")
-
-    raw_statements: List[RawFinancialStatement] = list()
-
-    for i, raw_doc in enumerate(raw_docs, start=1):
-
-        raw_fs = RawFinancialStatement(
-            raw_doc.document_id,
-            raw_doc.document_description,
-            raw_doc.document_link,
-            raw_doc.submission_date
-        )
-
-        fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
-        fs_type     = parse_statements_type_from_description(raw_doc.document_description)
-        logger.info(f"  {i}. {fs_end_date} - {fs_type} - {raw_doc.document_link}")
-
-        try:
-            navigator.open_statement(raw_fs.document_link)
-
-            navigator.open_statement_metadata_tab()
-            raw_fs = StatementMetadataParser().parse(driver, raw_fs)
-
-            navigator.open_company_metadata_tab()
-            raw_fs = CompanyMetadataParser().parse(driver, raw_fs)
-
-            navigator.open_statement_values_tab()
-            raw_fs = StatementValuesParser().parse(driver, raw_fs)
-
-            raw_statements.append(raw_fs)
-        except Exception as e:
-            logger.error(
-                f"Couldn't download statement for date {fs_end_date}. "
-                f"{type(e).__name__}: {e}"
-            )
-
-    driver.quit()
-
-    # -- TRANSFORM --
-
-    logger.info("--- TRANSFORMING FINANCIAL STATEMENTS ---")
-
-    for raw_fs in raw_statements:
-        try:
-            clean_fs = raw_to_clean_financial_statement(raw_fs)
-            company.add_statement(clean_fs)
-        except Exception as e:
-            logger.error(
-                f"Couldn't transform statement '{raw_fs.document_description}'. "
-                f"{type(e).__name__}: {e}"
-            )
-
-    # -- LOAD --
-
-    logger.info("--- SAVING COMPANY ---")
-
-    try:
-        export_company_to_excel(
-            company,
-            Path(f"data/output/{company.ticker}.xlsx")
-        )
-    except Exception as e:
-        logger.error(
-            f"Couldn't save company {company.name} to Excel. "
-            f"{type(e).__name__}: {e}"
-        )
+    """Convenience wrapper kept for backwards compatibility."""
+    FinancialStatementPipeline(date_from, date_to, exclude).run(company)
 
 
 companies = Companies()
 companies.load_from_excel("data/input/companies.xlsx")
 
-for company in companies.by_ticker.values():
-    logger.info(f"-----------------------------------------------")
-    logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
-    logger.info(f"-----------------------------------------------")
+pipeline = FinancialStatementPipeline(
+    date_from=PIPELINE_DATE_FROM,
+    date_to=PIPELINE_DATE_TO,
+    exclude=EXCLUDE_KEYWORDS
+)
+
+for company in companies:
     try:
-        load_financial_statements(
-            company,
-            PIPELINE_DATE_FROM,
-            PIPELINE_DATE_TO,
-            EXCLUDE_KEYWORDS
-        )
+        pipeline.run(company)
     except Exception as e:
         logger.error(
-            f"Pipeline failed for company {company.name}. "
+            f"Pipeline failed for {company.name}. "
             f"{type(e).__name__}: {e}"
         )
