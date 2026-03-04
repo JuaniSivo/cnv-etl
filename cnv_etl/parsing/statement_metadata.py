@@ -1,6 +1,6 @@
 import time
 
-from cnv_etl.config import STATEMENT_METADATA_IDS
+from cnv_etl.config import STATEMENT_METADATA_IDS, TAB_DELAY
 from cnv_etl.models.document import RawFinancialStatement
 from cnv_etl.parsing.parsing_utils import get_value, get_select_text
 
@@ -8,7 +8,7 @@ from cnv_etl.parsing.parsing_utils import get_value, get_select_text
 class StatementMetadataParser:
 
     def parse(self, driver, fs: RawFinancialStatement) -> RawFinancialStatement:
-        time.sleep(0.5)
+        time.sleep(TAB_DELAY)
         ids = STATEMENT_METADATA_IDS
 
         parsed_fs = fs.transform(

@@ -29,8 +29,8 @@ with open(_CONFIG_PATH, "rb") as _f:
 # Pipeline
 # ---------------------------------------------------------------------------
 
-PIPELINE_DATE_FROM: date = date.fromisoformat(_cfg["pipeline"]["date_from"])
-PIPELINE_DATE_TO:   date = date.fromisoformat(_cfg["pipeline"]["date_to"])
+PIPELINE_DATE_FROM: date      = date.fromisoformat(_cfg["pipeline"]["date_from"])
+PIPELINE_DATE_TO:   date      = date.fromisoformat(_cfg["pipeline"]["date_to"])
 EXCLUDE_KEYWORDS:   list[str] = _cfg["pipeline"]["exclude_keywords"]
 
 
@@ -38,26 +38,31 @@ EXCLUDE_KEYWORDS:   list[str] = _cfg["pipeline"]["exclude_keywords"]
 # Scraping
 # ---------------------------------------------------------------------------
 
-BASE_URL: str = _cfg["scraping"]["base_url"]
+BASE_URL: str            = _cfg["scraping"]["base_url"]
 XPATHS:   dict[str, str] = _cfg["scraping"]["xpaths"]
+
+# Delay constants (seconds) — used by selenium_utils and parsers
+CLICK_DELAY: float = _cfg["scraping"]["click_delay"]
+TAB_DELAY:   float = _cfg["scraping"]["tab_delay"]
+PAGE_DELAY:  float = _cfg["scraping"]["page_delay"]
 
 
 # ---------------------------------------------------------------------------
 # Parsing — element IDs
 # ---------------------------------------------------------------------------
 
-STATEMENT_METADATA_IDS: dict[str, str]       = _cfg["parsing"]["statement_metadata_ids"]
-COMPANY_METADATA_IDS:   dict[str, str | list] = _cfg["parsing"]["company_metadata_ids"]
+STATEMENT_METADATA_IDS: dict[str, str]         = _cfg["parsing"]["statement_metadata_ids"]
+COMPANY_METADATA_IDS:   dict[str, str | list]  = _cfg["parsing"]["company_metadata_ids"]
 
 
 # ---------------------------------------------------------------------------
 # Transformers — mapping tables
 # ---------------------------------------------------------------------------
 
-UNITS:               dict[str, int]  = _cfg["transformers"]["units"]
-BOOL_TRUE_VALUES:    list[str]       = _cfg["transformers"]["boolean"]["true_values"]
-BOOL_FALSE_VALUES:   list[str]       = _cfg["transformers"]["boolean"]["false_values"]
-REPORTING_PERIOD:    dict[str, str]  = _cfg["transformers"]["reporting_period"]
-STATEMENT_TYPE:      dict[str, str]  = _cfg["transformers"]["statement_type"]
-ACCOUNTING_STANDARD: dict[str, str]  = _cfg["transformers"]["accounting_standard"]
-TAXONOMY:            dict[str, str]  = _cfg["transformers"]["taxonomy"]
+UNITS:               dict[str, int] = _cfg["transformers"]["units"]
+BOOL_TRUE_VALUES:    list[str]      = _cfg["transformers"]["boolean"]["true_values"]
+BOOL_FALSE_VALUES:   list[str]      = _cfg["transformers"]["boolean"]["false_values"]
+REPORTING_PERIOD:    dict[str, str] = _cfg["transformers"]["reporting_period"]
+STATEMENT_TYPE:      dict[str, str] = _cfg["transformers"]["statement_type"]
+ACCOUNTING_STANDARD: dict[str, str] = _cfg["transformers"]["accounting_standard"]
+TAXONOMY:            dict[str, str] = _cfg["transformers"]["taxonomy"]

@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from cnv_etl.models.document import RawFinancialStatement, RawConceptValue
+from cnv_etl.config import PAGE_DELAY
 from cnv_etl.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +29,7 @@ class StatementValuesParser:
         start_page = int(pagination.get_attribute("data-paginainicio"))
         end_page   = int(pagination.get_attribute("data-paginafin"))
 
-        concepts: List[RawConceptValue] = list()
+        concepts: List[RawConceptValue] = []
 
         for i in range(start_page, end_page + 1):
             if i != 1:
@@ -49,7 +50,7 @@ class StatementValuesParser:
                 for r in d.find_elements(By.XPATH, '//table[@entidad="10013"]/tbody/tr')
             ))
 
-            time.sleep(0.5)
+            time.sleep(PAGE_DELAY)
 
             rows = driver.find_elements(By.XPATH, '//table[@entidad="10013"]/tbody/tr')
             logger.debug(f"Page {i}/{end_page}: found {len(rows)} rows")

@@ -28,6 +28,11 @@ exclude_keywords = [
 [scraping]
 base_url = "https://www.cnv.gov.ar/SitioWeb/Empresas/"
 
+# Delays (seconds) - tune these if the CNV site becomes slower
+click_delay    = 0.1   # pause after wait_clickable before returning
+tab_delay      = 0.5   # pause after switching tabs in parsers
+page_delay     = 0.5   # pause after paginating statement values
+
 [scraping.xpaths]
 financial_info_menu    = "//a[contains(., 'Información Financiera')]"
 financial_states_menu  = "//a[contains(., 'Estados Contables')]"
@@ -35,7 +40,6 @@ panel_heading          = "//div[@class='panel-heading']//strong[text()='Estados 
 statement_main_tab     = "//a[contains(., 'Estados Contables Básicos y Principales Índices')]"
 statement_metadata_tab = "//a[contains(., 'Identificación del Balance')]"
 company_metadata_tab   = "//a[contains(., 'Otros Datos')]"
-
 
 # -----------------------------------------------------------------------------
 # Parsing — CNV element IDs
