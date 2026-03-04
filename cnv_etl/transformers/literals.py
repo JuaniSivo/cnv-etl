@@ -1,140 +1,118 @@
 import re
-from typing import Literal, Dict, Optional
+from typing import Literal, Optional
+
+from cnv_etl.config import REPORTING_PERIOD, STATEMENT_TYPE, ACCOUNTING_STANDARD
 
 
-# Mapping tables
-REPORTING_PERIOD_MAP: Dict[str, Literal["Annual", "Semester", "Quarter", "Irregular"]] = {
-    "ANUAL": "Annual",
-    "1": "Annual",
-    "SEMESTRAL": "Semester", 
-    "2": "Semester",
-    "TRIMESTRAL": "Quarter",
-    "3": "Quarter",
-    "IRREGULAR": "Irregular"
-}
+# ---------------------------------------------------------------------------
+# Reporting period
+# ---------------------------------------------------------------------------
 
-STATEMENT_TYPE_MAP: Dict[str, Literal["Separate", "Consolidated"]] = {
-    "INDIVIDUAL": "Separate",
-    "CONSOLIDADO": "Consolidated"
-}
+def parse_reporting_period(
+    document_description: str,
+    reporting_period: str
+) -> Literal["Annual", "Semester", "Quarter", "Irregular"]:
 
-ACCOUNTING_STANDARD_MAP: Dict[str, Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]] = {
-    "NIIF": "IFRS",
-    "RT": "Argentine GAAP (RT)",
-    "NORMAS CONTABLES PROFESIONALES": "Argentine GAAP"
-}
-
-
-def parse_reporting_period(document_description: str, reporting_period: str) -> Literal["Annual", "Semester", "Quarter", "Irregular"]:
     period_from_description = parse_reporting_period_from_description(document_description)
-    period_from_statement_metadata = parse_reporting_period_from_metadata(reporting_period)
+    period_from_metadata    = parse_reporting_period_from_metadata(reporting_period)
 
-    if period_from_description is None and period_from_statement_metadata is None:
-        raise ValueError(f"Cannot parse date from period end date nor document description.\n- Description: {document_description}\n- Metadata: {reporting_period}")
+    if period_from_description is None and period_from_metadata is None:
+        raise ValueError(
+            f"Cannot parse reporting period from description or metadata.\n"
+            f"- Description: {document_description}\n"
+            f"- Metadata:    {reporting_period}"
+        )
 
-    if period_from_statement_metadata is None:
-        return period_from_description # type: ignore
-
-    return period_from_statement_metadata
+    return period_from_metadata or period_from_description  # type: ignore
 
 
-def parse_reporting_period_from_metadata(reporting_period: str) -> Optional[Literal["Annual", "Semester", "Quarter", "Irregular"]]:
-    reporting_period = reporting_period.upper()
-    if reporting_period in REPORTING_PERIOD_MAP.keys():
-        return REPORTING_PERIOD_MAP[reporting_period]
-    
+def parse_reporting_period_from_metadata(
+    reporting_period: str
+) -> Optional[Literal["Annual", "Semester", "Quarter", "Irregular"]]:
+    return REPORTING_PERIOD.get(reporting_period.upper())
+
+
+def parse_reporting_period_from_description(
+    description: str
+) -> Optional[Literal["Annual", "Semester", "Quarter", "Irregular"]]:
+    """Extract reporting period from patterns like 'PERIODICIDAD: ANUAL'."""
+    match = re.search(r'PERIODICIDAD\s*:\s*(\w+)', description)
+    if match:
+        return REPORTING_PERIOD.get(match.group(1).strip())
     return None
 
 
-def parse_reporting_period_from_description(description: str) -> Optional[Literal["Annual", "Semester", "Quarter", "Irregular"]]:
-        """
-        Extract reporting period from description.
-        
-        Looks for patterns like:
-        - "PERIODICIDAD: 3"
-        - "PERIODICIDAD: TRIMESTRAL"
-        - "PERIODICIDAD: ANUAL"
-        """
-        # Pattern: PERIODICIDAD: <value>
-        match = re.search(r'PERIODICIDAD\s*:\s*(\w+)', description)
-        if match:
-            value = match.group(1).strip()
-            return REPORTING_PERIOD_MAP.get(value)
-        
-        return None
+# ---------------------------------------------------------------------------
+# Financial statements type
+# ---------------------------------------------------------------------------
 
+def parse_financial_statements_type(
+    document_description: str,
+    financial_statements_type: str
+) -> Literal["Separate", "Consolidated"]:
 
-def parse_financial_statements_type(document_description: str, financial_statements_type: str) -> Literal["Separate", "Consolidated"]:
     type_from_description = parse_statements_type_from_description(document_description)
-    type_from_statement_metadata = parse_statements_type_from_statement_metadata(financial_statements_type)
+    type_from_metadata    = parse_statements_type_from_statement_metadata(financial_statements_type)
 
-    if type_from_description is None and type_from_statement_metadata is None:
-        raise ValueError(f"Cannot parse date from period end date nor document description.\n- Description: {document_description}\n- Metadata: {financial_statements_type}")
+    if type_from_description is None and type_from_metadata is None:
+        raise ValueError(
+            f"Cannot parse statements type from description or metadata.\n"
+            f"- Description: {document_description}\n"
+            f"- Metadata:    {financial_statements_type}"
+        )
 
-    if type_from_statement_metadata is None:
-        return type_from_description # type: ignore
-
-    return type_from_statement_metadata
+    return type_from_metadata or type_from_description  # type: ignore
 
 
-def parse_statements_type_from_statement_metadata(financial_statements_type: str) -> Optional[Literal["Separate", "Consolidated"]]:
-    financial_statements_type = financial_statements_type.upper()
-    if financial_statements_type in STATEMENT_TYPE_MAP.keys():
-        return STATEMENT_TYPE_MAP[financial_statements_type] 
-    
+def parse_statements_type_from_statement_metadata(
+    financial_statements_type: str
+) -> Optional[Literal["Separate", "Consolidated"]]:
+    return STATEMENT_TYPE.get(financial_statements_type.upper())
+
+
+def parse_statements_type_from_description(
+    description: str
+) -> Optional[Literal["Separate", "Consolidated"]]:
+    """Extract statement type from patterns like 'TIPO BALANCE: CONSOLIDADO'."""
+    match = re.search(r'TIPO\s+BALANCE\s*:\s*(\w+)', description)
+    if match:
+        return STATEMENT_TYPE.get(match.group(1).strip())
     return None
 
 
-def parse_statements_type_from_description(description: str) -> Optional[Literal["Separate", "Consolidated"]]:
-        """
-        Extract financial statement type from description.
-        
-        Looks for patterns like:
-        - "TIPO BALANCE: INDIVIDUAL"
-        - "TIPO BALANCE: CONSOLIDADO"
-        """
-        # Pattern: TIPO BALANCE: <value>
-        match = re.search(r'TIPO\s+BALANCE\s*:\s*(\w+)', description)
-        if match:
-            value = match.group(1).strip()
-            return STATEMENT_TYPE_MAP.get(value)
-        
-        return None
+# ---------------------------------------------------------------------------
+# Accounting standards
+# ---------------------------------------------------------------------------
+
+def parse_accounting_standards_applied(
+    document_description: str,
+    accounting_std: str
+) -> Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]:
+
+    std_from_description = parse_accounting_standard_from_description(document_description)
+    std_from_metadata    = parse_accounting_standard_from_statement_metadata(accounting_std)
+
+    if std_from_description is None and std_from_metadata is None:
+        raise ValueError(
+            f"Cannot parse accounting standard from description or metadata.\n"
+            f"- Description: {document_description}\n"
+            f"- Metadata:    {accounting_std}"
+        )
+
+    return std_from_metadata or std_from_description  # type: ignore
 
 
-def parse_accounting_standards_applied(document_description: str, accounting_std: str) -> Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]:
-    accounting_std_from_description = parse_accounting_standard_from_description(document_description)
-    accounting_std_from_statement_metadata = parse_accounting_standard_from_statement_metadata(accounting_std)
-
-    if accounting_std_from_description is None and accounting_std_from_statement_metadata is None:
-        raise ValueError(f"Cannot parse date from period end date nor document description.\n- Description: {document_description}\n- Metadata: {accounting_std}")
-
-    if accounting_std_from_statement_metadata is None:
-        return accounting_std_from_description # type: ignore
-
-    return accounting_std_from_statement_metadata
+def parse_accounting_standard_from_statement_metadata(
+    accounting_std: str
+) -> Optional[Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]]:
+    return ACCOUNTING_STANDARD.get(accounting_std.upper())
 
 
-def parse_accounting_standard_from_statement_metadata(accounting_std: str) -> Optional[Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]]:
-    accounting_std = accounting_std.upper()
-    if accounting_std in ACCOUNTING_STANDARD_MAP.keys():
-        return ACCOUNTING_STANDARD_MAP[accounting_std] 
-    
+def parse_accounting_standard_from_description(
+    description: str
+) -> Optional[Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]]:
+    """Extract accounting standard from patterns like 'NORMA CONTABLE: NIIF'."""
+    match = re.search(r'NORMA\s+CONTABLE\s*:\s*([A-Z\s]+?)(?:\s*-|$)', description)
+    if match:
+        return ACCOUNTING_STANDARD.get(match.group(1).strip())
     return None
-
-
-def parse_accounting_standard_from_description(description: str) -> Optional[Literal["IFRS", "Argentine GAAP (RT)", "Argentine GAAP"]]:
-        """
-        Extract accounting standards from description.
-        
-        Looks for patterns like:
-        - "NORMA CONTABLE: NIIF"
-        - "NORMA CONTABLE: RT"
-        """
-        # Pattern: NORMA CONTABLE: <value>
-        match = re.search(r'NORMA\s+CONTABLE\s*:\s*([A-Z\s]+?)(?:\s*-|$)', description)
-        if match:
-            value = match.group(1).strip()
-            return ACCOUNTING_STANDARD_MAP.get(value)
-        
-        return None

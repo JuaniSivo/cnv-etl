@@ -1,100 +1,16 @@
-CNV_TO_XBRL = {
-    "EFECTIVO Y EQUIVALENTES A EFECTIVO": "CashAndCashEquivalents",
-    "ACTIVOS FINANCIEROS CORRIENTES": "CurrentFinancialAssets",
-    "CUENTAS POR COBRAR CORRIENTES": "CurrentTradeAndOtherReceivables",
-    "OTROS ACTIVOS NO FINANCIEROS CORRIENTES": "OtherCurrentNonFinancialAssets",
-    "INVENTARIOS CORRIENTES": "Inventories",
-    "ACTIVO CORRIENTE": "CurrentAssets",
-    "ACTIVOS FINANCIEROS NO CORRIENTES": "NonCurrentFinancialAssets",
-    "CUENTAS POR COBRAR NO CORRIENTES": "NonCurrentTradeAndOtherReceivables",
-    "PROPIEDADES PLANTAS Y EQUIPOS": "PropertyPlantAndEquipment",
-    "OTROS ACTIVOS NO FINANCIEROS NO CORRIENTES": "OtherNonCurrentNonFinancialAssets",
-    "ACTIVOS INTANGIBLES": "IntangibleAssets",
-    "ACTIVO NO CORRIENTE": "NonCurrentAssets",
-    "TOTAL DEL ACTIVO": "Assets",
-    "CAPITAL": "IssuedCapital",
-    "AJUSTE DE CAPITAL": "CapitalAdjustment",
-    "APORTES NO CAPITALIZADOS O CONTRIBUCIONES DE CAPITAL": "ContributionsReceivedForFutureShareIssues",
-    "OTROS CONCEPTOS DEL CAPITAL": "OtherEquityInterests",
-    "RESERVA LEGAL": "LegalReserve",
-    "OTRAS RESERVAS": "OtherReserves",
-    "GANANCIAS RESERVADAS": "RetainedEarnings",
-    "INTERESES NO CONTROLANTES": "NonControllingInterests",
-    "RESULTADOS NO ASIGNADOS": "AccumulatedResults",
-    "RESULTADOS INTEGRALES": "ComprehensiveIncome",
-    "TOTAL PATRIMONIO NETO": "Equity",
-    "PASIVOS FINANCIEROS CORRIENTES": "CurrentFinancialLiabilities",
-    "CUENTAS POR PAGAR CORRIENTES": "CurrentTradeAndOtherPayables",
-    "PASIVOS POR IMPUESTOS CORRIENTES": "CurrentTaxLiabilities",
-    "OTROS PASIVOS NO FINANCIEROS CORRIENTES": "OtherCurrentNonFinancialLiabilities",
-    "PASIVO CORRIENTE": "CurrentLiabilities",
-    "PASIVOS FINANCIEROS NO CORRIENTES": "NonCurrentFinancialLiabilities",
-    "CUENTAS POR PAGAR NO CORRIENTES": "NonCurrentTradeAndOtherPayables",
-    "PASIVOS POR IMPUESTOS NO CORRIENTES": "NonCurrentTaxLiabilities",
-    "OTROS PASIVOS NO FINANCIEROS NO CORRIENTES": "OtherNonCurrentNonFinancialLiabilities",
-    "PASIVO NO CORRIENTE": "NonCurrentLiabilities",
-    "TOTAL DEL PASIVO": "Liabilities",
-    "TOTAL DEL PASIVO Y PATRIMONIO NETO": "LiabilitiesAndEquity",
-    "INGRESOS DE ACTIVIDADES ORDINARIAS": "Revenue",
-    "COSTO DE VENTAS Y/O SERVICIOS": "CostOfSales",
-    "GANANCIA (PERDIDA) BRUTA": "GrossProfit",
-    "HONORARIOS A DIRECTORES Y SINDICOS": "DirectorsAndStatutoryAuditorsFees",
-    "OTROS GASTOS DE ADMINISTRACION": "AdministrativeExpenses",
-    "GASTOS DE COMERCIALIZACION Y/O DISTRIBUCION": "SellingAndDistributionExpenses",
-    "OTROS GASTOS OPERATIVOS": "OtherOperatingExpenses",
-    "OTROS INGRESOS": "OtherIncome",
-    "DEPRECIACIONES Y AMORTIZACIONES": "DepreciationAndAmortisation",
-    "GANANCIA (PERDIDA) DE ACTIVIDADES OPERATIVAS": "OperatingProfitLoss",
-    "INGRESOS FINANCIEROS": "FinanceIncome",
-    "COSTOS FINANCIEROS": "FinanceCosts",
-    "RECPAM": "MonetaryPositionGainLoss",
-    "OTROS RESULTADOS": "OtherGainsLosses",
-    "GANANCIA (PERDIDA) ANTES DE IMPUESTOS": "ProfitLossBeforeTax",
-    "INGRESO (GASTO) POR IMPUESTOS A LAS GANANCIAS": "IncomeTaxExpense",
-    "GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO OPERACIONES CONTINUADAS": "ProfitLossFromContinuingOperations",
-    "GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO OPERACIONES DISCONTINUADAS": "ProfitLossFromDiscontinuedOperations",
-    "GANANCIA (PERDIDA) DEL PERIODO / EJERCICIO": "ProfitLoss",
-    "OTRO RESULTADO INTEGRAL DEL EJERCICIO / PERIODO": "OtherComprehensiveIncome",
-    "RESULTADO INTEGRAL TOTAL DEL EJERCICIO / PERIODO": "TotalComprehensiveIncome",
-    "TOTAL CAMBIOS EN ACTIVOS Y PASIVOS OPERATIVOS": "CashFlowsFromOperatingActivities",
-    "TOTAL DE ACTIVIDADES DE INVERSION": "CashFlowsFromInvestingActivities",
-    "TOTAL DE ACTIVIDADES DE FINANCIACION": "CashFlowsFromFinancingActivities",
-    "INCREMENTO (DISMINUCION) NETA DE EFECTIVO Y EQUIVALENTES": "IncreaseDecreaseInCashAndCashEquivalents",
-    "GANANCIA (PERDIDA) BASICA POR ACCION": "BasicEarningsLossPerShare",
-    "GANANCIAS (PERDIDA) DILUIDA POR ACCION": "DilutedEarningsLossPerShare",
-    "TOTAL PATRIMONIO NETO DEL EJERCICIO ANTERIOR": "EquityPreviousPeriod",
-    "EBIT": "EBIT",
-    "EBITDA": "EBITDA",
-    "CAPITAL DE TRABAJO": "WorkingCapital",
-    "LIQUIDEZ": "CurrentRatio",
-    "SOLVENCIA": "SolvencyRatio",
-    "INMOVILIZACION DEL CAPITAL": "CapitalEmployed",
-    "RENTABILIDAD PATRIMONIO NETO": "ReturnOnEquity",
-    "RENTABILIDAD DEL ACTIVO": "ReturnOnAssets",
-    "ENDEUDAMIENTO": "DebtRatio",
-    "ENDEUDAMIENTO A CORTO PLAZO": "ShortTermDebtRatio",
-    "APALANCAMIENTO": "LeverageRatio",
-    "MARGEN NETO / VENTAS": "NetProfitMargin",
-    "DEUDA FINANCIERA / EBITDA": "NetDebtToEBITDA",
-    "EBITDA / COSTOS FINANCIEROS": "EBITDAToFinanceCosts",
-    "ANALISIS DU-PONT": "DuPontAnalysis",
-    "PRUEBA ACIDA": "QuickRatio",
-    "COBERTURA DE GASTOS FINANCIEROS": "InterestCoverageRatio",
-    "ROTACION DE ACTIVOS": "AssetTurnover",
-}
+from cnv_etl.config import TAXONOMY
 
 
 def map_to_xbrl(cnv_label: str) -> str:
     """
     Map CNV Spanish label to XBRL taxonomy concept.
-    
+
     Returns the XBRL label if found, otherwise returns the original label.
     This allows for graceful handling of unmapped concepts.
     """
+    xbrl_label = TAXONOMY.get(cnv_label.upper(), cnv_label)
 
-    xbrl_label = CNV_TO_XBRL.get(cnv_label.upper(), cnv_label)
-    
-    if cnv_label not in CNV_TO_XBRL.keys():
+    if cnv_label.upper() not in TAXONOMY:
         print(f"Warning: Could not map CNV concept '{cnv_label}' to XBRL")
-    
+
     return xbrl_label
