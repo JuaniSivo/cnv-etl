@@ -1,4 +1,7 @@
 from cnv_etl.config import TAXONOMY
+from cnv_etl.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def map_to_xbrl(cnv_label: str) -> str:
@@ -11,6 +14,6 @@ def map_to_xbrl(cnv_label: str) -> str:
     xbrl_label = TAXONOMY.get(cnv_label.upper(), cnv_label)
 
     if cnv_label.upper() not in TAXONOMY:
-        print(f"Warning: Could not map CNV concept '{cnv_label}' to XBRL")
+        logger.warning(f"Could not map CNV concept '{cnv_label}' to XBRL")
 
     return xbrl_label

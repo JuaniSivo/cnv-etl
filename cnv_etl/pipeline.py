@@ -2,6 +2,7 @@ from datetime import date
 from typing import List
 from pathlib import Path
 
+from cnv_etl.logging_config import setup_logging, get_logger
 from cnv_etl.models.company import Company, Companies
 from cnv_etl.models.document import RawFinancialStatement
 from cnv_etl.scraping.session import create_driver
@@ -15,6 +16,9 @@ from cnv_etl.transformers.dates import parse_period_end_date_from_description
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
+
+setup_logging()
+logger = get_logger(__name__)
 
 
 def load_financial_statements(
@@ -36,14 +40,14 @@ def load_financial_statements(
     )
     raw_docs = DocumentsTableParser().parse(header, rows, exclude)
 
-    print("\n--- DOCUMENTS FOUND ---\n")
+    logger.info("--- DOCUMENTS FOUND ---")
     for i, raw_doc in enumerate(raw_docs):
-        print(f"{i+1}. {raw_doc.document_description}")
+        logger.info(f"  {i+1}. {raw_doc.document_description}")
 
     # -- CLEAN DOCUMENTS --
 
-    print("\n--- DOCUMENTS REMOVED ---\n")
-    end_dates = [parse_period_end_date_from_description(raw_doc.document_description) for raw_doc in raw_docs]
+    logger.info("--- DEDUPLICATING DOCUMENTS ---")
+    end_dates = [parse_period_end_date_from_description(d.document_description) for d in raw_docs]
     for idx, raw_doc in enumerate(raw_docs):
         fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
         if fs_end_date is None:
@@ -53,11 +57,11 @@ def load_financial_statements(
             statement_type = parse_statements_type_from_description(raw_doc.document_description)
             if statement_type == "Separate":
                 raw_docs.pop(idx)
-                print(f"- Removed {statement_type} document from {fs_end_date}")
+                logger.info(f"  Removed {statement_type} document from {fs_end_date}")
 
     # -- EXTRACT & PARSE FINANCIAL STATEMENTS --
 
-    print("\n--- DOWNLOADING FINANCIAL STATEMENTS ---\n")
+    logger.info("--- DOWNLOADING FINANCIAL STATEMENTS ---")
 
     raw_statements: List[RawFinancialStatement] = list()
 
@@ -72,7 +76,7 @@ def load_financial_statements(
 
         fs_end_date = parse_period_end_date_from_description(raw_doc.document_description)
         fs_type     = parse_statements_type_from_description(raw_doc.document_description)
-        print(f"{i}. {fs_end_date} - {fs_type} - {raw_doc.document_link}")
+        logger.info(f"  {i}. {fs_end_date} - {fs_type} - {raw_doc.document_link}")
 
         try:
             navigator.open_statement(raw_fs.document_link)
@@ -88,43 +92,51 @@ def load_financial_statements(
 
             raw_statements.append(raw_fs)
         except Exception as e:
-            print(f"  Exception {type(e)}. Couldn't download financial statement for date {fs_end_date}. Description: {e}")
+            logger.error(
+                f"Couldn't download statement for date {fs_end_date}. "
+                f"{type(e).__name__}: {e}"
+            )
 
     driver.quit()
 
     # -- TRANSFORM --
 
-    print("\n--- TRANSFORMING FINANCIAL STATEMENTS ---\n")
+    logger.info("--- TRANSFORMING FINANCIAL STATEMENTS ---")
 
     for raw_fs in raw_statements:
         try:
             clean_fs = raw_to_clean_financial_statement(raw_fs)
             company.add_statement(clean_fs)
         except Exception as e:
-            print(f"  Exception {type(e)}. Couldn't transform financial statement. Description: {e}")
+            logger.error(
+                f"Couldn't transform statement '{raw_fs.document_description}'. "
+                f"{type(e).__name__}: {e}"
+            )
 
     # -- LOAD --
 
-    print("\n--- SAVING COMPANY ---\n")
+    logger.info("--- SAVING COMPANY ---")
 
     try:
         export_company_to_excel(
             company,
-            Path(f"data/output/{company.ticker}.xlsx")
+            Path(f"data/{company.ticker}.xlsx")
         )
     except Exception as e:
-        print(f"  Exception {type(e)}. Couldn't save company {company.name} to excel. Description: {e}")
+        logger.error(
+            f"Couldn't save company {company.name} to Excel. "
+            f"{type(e).__name__}: {e}"
+        )
 
 
 companies = Companies()
 companies.load_from_excel("data/input/companies.xlsx")
 
-for company in companies.by_ticker.values():
+for company in list(companies.by_ticker.values())[:1]:
+    logger.info(f"-----------------------------------------------")
+    logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
+    logger.info(f"-----------------------------------------------")
     try:
-        print(f"\n-----------------------------------------------")
-        print(f"Empresa: {company.name}")
-        print(f"Ticker:  {company.ticker}")
-        print(f"-----------------------------------------------\n")
         load_financial_statements(
             company,
             PIPELINE_DATE_FROM,
@@ -132,4 +144,7 @@ for company in companies.by_ticker.values():
             EXCLUDE_KEYWORDS
         )
     except Exception as e:
-        print(f"  Exception {type(e)}. Couldn't end company {company.name} pipeline. Description: {e}")
+        logger.error(
+            f"Pipeline failed for company {company.name}. "
+            f"{type(e).__name__}: {e}"
+        )

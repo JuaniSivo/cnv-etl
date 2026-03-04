@@ -8,12 +8,14 @@ from openpyxl.utils import get_column_letter
 
 from cnv_etl.models.document import CleanFinancialStatement
 from cnv_etl.models.company import Company
+from cnv_etl.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ExcelExporter:
     """Export financial statements to Excel format."""
-    
-    # Style definitions
+
     HEADER_FILL = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
     HEADER_FONT = Font(bold=True, size=11)
     BORDER = Border(
@@ -22,45 +24,36 @@ class ExcelExporter:
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
-    
+
     def __init__(self):
         self.wb = Workbook()
-    
+
     def export_company(
         self,
         company: Company,
         output_path: Path
     ) -> Path:
-        
+
         if not company.statements:
             raise ValueError("Cannot export empty statements list")
-        
-        # Ensure .xlsx extension
+
         if output_path.suffix != '.xlsx':
             output_path = output_path.with_suffix('.xlsx')
-        
-        # Create workbook
-        self.wb.remove(self.wb.active)  # Remove default sheet
-        
-        # Write sheets
+
+        self.wb.remove(self.wb.active)
+
         self._write_company_metadata_sheet(company)
         self._write_statement_metadata_sheet(company)
         self._write_statement_values_sheet(company.statements)
-        
-        # Save
+
         self.wb.save(output_path)
-        print(f"✓ Exported {len(company.statements)} statements to {output_path}")
-        
+        logger.info(f"Exported {len(company.statements)} statements to {output_path}")
+
         return output_path
-    
-    def _write_company_metadata_sheet(
-        self,
-        company: Company
-    ) -> None:
-        """Write metadata sheet with one row per statement."""
+
+    def _write_company_metadata_sheet(self, company: Company) -> None:
         ws = self.wb.create_sheet("company_metadata")
-        
-        # Define rows
+
         rows = [
             ("id", company.id),
             ("name", company.name),
@@ -72,19 +65,13 @@ class ExcelExporter:
             ("sub_industry", company.sub_industry),
             ("sub_industry_description", company.sub_industry_description)
         ]
-                
-        # Write data rows
+
         for row_idx, row_data in enumerate(rows, start=1):
             self._write_data_row(ws, row_idx, row_data)
-    
-    def _write_statement_metadata_sheet(
-        self,
-        company: Company
-    ) -> None:
-        """Write metadata sheet with one row per statement."""
+
+    def _write_statement_metadata_sheet(self, company: Company) -> None:
         ws = self.wb.create_sheet("statement_metadata")
-        
-        # Define columns
+
         columns = [
             ("document_id", 15),
             ("document_description", 100),
@@ -103,14 +90,12 @@ class ExcelExporter:
             ("free_float_percentage", 15),
             ("number_of_employees", 20)
         ]
-        
+
         headers = [col[0] for col in columns]
-        widths = [col[1] for col in columns]
-        
-        # Write and format header
+        widths  = [col[1] for col in columns]
+
         self._write_header_row(ws, headers, widths)
-        
-        # Write data rows
+
         for row_idx, stmt in enumerate(company.statements.values(), start=2):
             row_data = [
                 stmt.document_id,
@@ -131,54 +116,41 @@ class ExcelExporter:
                 stmt.number_of_employees
             ]
             self._write_data_row(ws, row_idx, row_data)
-        
-        # Freeze header row
+
         ws.freeze_panes = 'A2'
-    
+
     def _write_statement_values_sheet(
         self,
         statements: Dict[int, CleanFinancialStatement]
     ) -> None:
-        """Write values sheet with all statement lines."""
         ws = self.wb.create_sheet("statement_values")
-        
-        # Define columns
+
         columns = [
             ("document_id", 15),
             ("order", 12),
             ("concept", 40),
             ("value", 20)
         ]
-        
+
         headers = [col[0] for col in columns]
-        widths = [col[1] for col in columns]
-        
-        # Write and format header
+        widths  = [col[1] for col in columns]
+
         self._write_header_row(ws, headers, widths)
-        
-        # Write all statement lines
+
         row_idx = 2
         for stmt in statements.values():
             for line in stmt.statement.values():
-                row_data = [
+                self._write_data_row(ws, row_idx, [
                     stmt.document_id,
                     line.order,
                     line.label,
                     line.value
-                ]
-                self._write_data_row(ws, row_idx, row_data)
+                ])
                 row_idx += 1
-        
-        # Freeze header row
+
         ws.freeze_panes = 'A2'
-    
-    def _write_header_row(
-        self,
-        ws,
-        headers: list[str],
-        widths: list[int]
-    ) -> None:
-        """Write and format header row."""
+
+    def _write_header_row(self, ws, headers: list[str], widths: list[int]) -> None:
         for col_idx, (header, width) in enumerate(zip(headers, widths), start=1):
             cell = ws.cell(row=1, column=col_idx)
             cell.value = header
@@ -186,22 +158,12 @@ class ExcelExporter:
             cell.fill = self.HEADER_FILL
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = self.BORDER
-            
-            # Set column width
-            column_letter = get_column_letter(col_idx)
-            ws.column_dimensions[column_letter].width = width
-    
-    def _write_data_row(
-        self,
-        ws,
-        row_idx: int,
-        data: list[Any]
-    ) -> None:
-        """Write a data row with appropriate formatting."""
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    def _write_data_row(self, ws, row_idx: int, data: list[Any]) -> None:
         for col_idx, value in enumerate(data, start=1):
             cell = ws.cell(row=row_idx, column=col_idx)
-            
-            # Set value and format based on type
+
             if isinstance(value, datetime):
                 cell.value = value
                 cell.number_format = 'YYYY-MM-DD HH:MM'
@@ -216,19 +178,11 @@ class ExcelExporter:
                 cell.number_format = '#,##0.00'
             else:
                 cell.value = value
-            
+
             cell.border = self.BORDER
 
 
-# Convenience function
-def export_company_to_excel(
-    company: Company,
-    output_path: Path
-) -> Path:
-    """
-    Export company statements to Excel.
-    
-    Convenience wrapper around ExcelExporter class.
-    """
+def export_company_to_excel(company: Company, output_path: Path) -> Path:
+    """Convenience wrapper around ExcelExporter."""
     exporter = ExcelExporter()
     return exporter.export_company(company, output_path)

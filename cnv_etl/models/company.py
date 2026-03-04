@@ -4,6 +4,10 @@ from dataclasses import dataclass, field, fields
 
 from openpyxl import load_workbook
 
+from cnv_etl.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from cnv_etl.models.document import CleanFinancialStatement
 
 
@@ -194,11 +198,11 @@ class Companies:
                 try:
                     company_data[company_attr] = _coerce(raw_value, target_type)
                 except ValueError as e:
-                    print(f"⚠ Row {row_idx}, field '{company_attr}': {e}. Skipping field.")
+                    logger.warning(f"Row {row_idx}, field '{company_attr}': {e}. Skipping field.")
                     company_data[company_attr] = None
 
             if not company_data.get("id") or not company_data.get("name"):
-                print(f"⚠ Skipping row {row_idx}: missing id or name")
+                logger.warning(f"Skipping row {row_idx}: missing id or name")
                 continue
 
             try:
@@ -206,10 +210,10 @@ class Companies:
                 self.add(company)
                 companies_loaded += 1
             except Exception as e:
-                print(f"⚠ Error loading company at row {row_idx}: {e}")
+                logger.error(f"Error loading company at row {row_idx}: {e}")
 
         wb.close()
-        print(f"✓ Loaded {companies_loaded} companies from {file_path}")
+        logger.info(f"Loaded {companies_loaded} companies from {file_path}")
 
     def __len__(self) -> int:
         return len(self.by_ticker)
