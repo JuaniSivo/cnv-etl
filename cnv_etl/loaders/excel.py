@@ -166,7 +166,7 @@ class ExcelExporter:
 
             if isinstance(value, datetime):
                 cell.value = value
-                cell.number_format = 'YYYY-MM-DD HH:MM'
+                cell.number_format = 'YYYY-MM-DD HH:mm'  # mm = minutes (was MM = months)
             elif isinstance(value, date):
                 cell.value = value
                 cell.number_format = 'YYYY-MM-DD'
