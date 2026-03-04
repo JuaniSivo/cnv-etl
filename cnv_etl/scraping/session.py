@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webdriver import WebDriver
 
 
-def create_driver(headless: bool = False) -> WebDriver:
+def create_driver(headless: bool = True) -> WebDriver:
     """
     Create and configure a Selenium Chrome WebDriver.
 
