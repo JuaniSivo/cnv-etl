@@ -15,7 +15,7 @@ from cnv_etl.parsing.statement_values import StatementValuesParser
 from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statement
 from cnv_etl.transformers.dates import parse_period_end_date_from_description, parse_cnv_datetime
 from cnv_etl.transformers.literals import parse_statements_type_from_description
-from cnv_etl.loaders.excel import export_company_to_excel
+from cnv_etl.loaders.excel import export_company_to_excel, export_report_to_excel
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
 from cnv_etl.errors import ETLError, CompanyStats, PipelineReport
 
@@ -303,3 +303,8 @@ if __name__ == "__main__":
             )
 
     logger.info(report.summary())
+
+    try:
+        export_report_to_excel(report, Path("data/output/pipeline_report.xlsx"))
+    except Exception as e:
+        logger.error(f"Could not save pipeline report. {type(e).__name__}: {e}")
