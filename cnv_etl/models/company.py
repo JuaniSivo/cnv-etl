@@ -34,19 +34,17 @@ class Company:
 
 def _resolve_type(hint):
     """
-    Unwrap Optional[X] to X.
-    Returns the raw type annotation otherwise.
-    """
-    if get_origin(hint) is type(Optional[int]) or get_origin(hint) is type(None):
-        pass
+    Unwrap Optional[X] (i.e. Union[X, None]) to X.
 
+    For any other annotation, return it unchanged.
+    get_args(Optional[X]) returns (X, NoneType), so we take
+    the first arg that is not NoneType.
+    """
     args = get_args(hint)
     if args:
-        # Optional[X] is Union[X, None] — return the first non-None arg
         non_none = [a for a in args if a is not type(None)]
         if non_none:
             return non_none[0]
-
     return hint
 
 
@@ -55,16 +53,14 @@ def _build_field_types(cls) -> dict[str, type]:
     Return a mapping of field_name → resolved Python type for a dataclass,
     excluding fields with complex types (e.g. Dict, List).
     """
-    hints = {f.name: f.type for f in fields(cls)}
     resolved = {}
-    for name, hint in hints.items():
-        # Skip already-evaluated annotations that are strings (forward refs)
-        if isinstance(hint, str):
+    for f in fields(cls):
+        if isinstance(f.type, str):
+            # Skip forward references — can't introspect safely
             continue
-        t = _resolve_type(hint)
-        # Only keep scalar types we can safely coerce to
+        t = _resolve_type(f.type)
         if t in (int, float, str, bool):
-            resolved[name] = t
+            resolved[f.name] = t
     return resolved
 
 
