@@ -1,3 +1,4 @@
+import time
 from datetime import date
 from typing import List
 from pathlib import Path
@@ -16,17 +17,20 @@ from cnv_etl.transformers.dates import parse_period_end_date_from_description, p
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
+from cnv_etl.errors import ETLError, CompanyStats, PipelineReport
 
 setup_logging()
 logger = get_logger(__name__)
 
 
 def _transform_statements(
-    raw_statements: List[RawFinancialStatement]
+    raw_statements: List[RawFinancialStatement],
+    stats: CompanyStats,
+    report: PipelineReport,
 ) -> List[CleanFinancialStatement]:
     """
     Transform raw financial statements into clean domain objects.
-    Logs and skips any statement that fails transformation.
+    Logs, records, and skips any statement that fails transformation.
     """
     clean_statements: List[CleanFinancialStatement] = []
 
@@ -34,8 +38,17 @@ def _transform_statements(
         try:
             clean_fs = raw_to_clean_financial_statement(raw_fs)
             clean_statements.append(clean_fs)
+            stats.statements_transformed += 1
             logger.debug(f"  Transformed statement '{raw_fs.document_description}'")
         except Exception as e:
+            error = ETLError(
+                stage="transform",
+                ticker=stats.ticker,
+                error_type=type(e).__name__,
+                message=str(e),
+                document_description=raw_fs.document_description,
+            )
+            report.add_error(error)
             logger.error(
                 f"Couldn't transform statement '{raw_fs.document_description}'. "
                 f"{type(e).__name__}: {e}"
@@ -49,7 +62,9 @@ def _fetch_raw_documents(
     company: Company,
     date_from: date,
     date_to: date,
-    exclude: List[str]
+    exclude: List[str],
+    stats: CompanyStats,
+    report: PipelineReport,
 ) -> List[RawDocument]:
     """
     Open a Selenium session, navigate to the company's documents table
@@ -61,6 +76,19 @@ def _fetch_raw_documents(
     try:
         header, rows = navigator.open_documents_table(str(company.id), date_from, date_to)
         raw_docs = DocumentsTableParser().parse(header, rows, exclude)
+    except Exception as e:
+        error = ETLError(
+            stage="fetch",
+            ticker=stats.ticker,
+            error_type=type(e).__name__,
+            message=str(e),
+        )
+        report.add_error(error)
+        logger.error(
+            f"Failed to fetch documents for {company.ticker}. "
+            f"{type(e).__name__}: {e}"
+        )
+        return []
     finally:
         driver.quit()
 
@@ -71,7 +99,11 @@ def _fetch_raw_documents(
     return raw_docs
 
 
-def _download_statements(raw_docs: List[RawDocument]) -> List[RawFinancialStatement]:
+def _download_statements(
+    raw_docs: List[RawDocument],
+    stats: CompanyStats,
+    report: PipelineReport,
+) -> List[RawFinancialStatement]:
     """
     Open a Selenium session and download each raw financial statement
     from the CNV website.
@@ -108,7 +140,17 @@ def _download_statements(raw_docs: List[RawDocument]) -> List[RawFinancialStatem
                 raw_fs = StatementValuesParser().parse(driver, raw_fs)
 
                 raw_statements.append(raw_fs)
+                stats.statements_downloaded += 1
+
             except Exception as e:
+                error = ETLError(
+                    stage="download",
+                    ticker=stats.ticker,
+                    error_type=type(e).__name__,
+                    message=str(e),
+                    document_description=raw_doc.document_description,
+                )
+                report.add_error(error)
                 logger.error(
                     f"Couldn't download statement for date {fs_end_date}. "
                     f"{type(e).__name__}: {e}"
@@ -127,11 +169,9 @@ def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
 
     Documents with no parseable period end date are always kept as-is.
     """
-    # Separate documents with no parseable date — they are never deduplicated
     undated = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is None]
     dated   = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is not None]
 
-    # Group by period end date
     groups: dict = {}
     for doc in dated:
         key = parse_period_end_date_from_description(doc.document_description)
@@ -143,12 +183,9 @@ def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
             kept.append(docs[0])
             continue
 
-        # Prefer Consolidated; fall back to Separate if none exist
         consolidated = [d for d in docs if parse_statements_type_from_description(d.document_description) == "Consolidated"]
         candidates   = consolidated if consolidated else docs
-
-        # Among candidates, pick the most recent submission date
-        winner = max(candidates, key=lambda d: parse_cnv_datetime(d.submission_date))
+        winner       = max(candidates, key=lambda d: parse_cnv_datetime(d.submission_date))
 
         removed = [d for d in docs if d is not winner]
         for doc in removed:
@@ -168,73 +205,95 @@ class FinancialStatementPipeline:
       3. Download each financial statement
       4. Transform raw statements into clean domain objects
       5. Load clean statements into the company and export to Excel
+
+    Each run records results in the shared PipelineReport passed at
+    construction time. If no report is provided, a new one is created.
     """
 
     def __init__(
         self,
         date_from: date,
         date_to: date,
-        exclude: List[str]
+        exclude: List[str],
+        report: PipelineReport | None = None,
     ) -> None:
         self.date_from = date_from
         self.date_to   = date_to
         self.exclude   = exclude
+        self.report    = report or PipelineReport()
 
-    def run(self, company: Company) -> None:
+    def run(self, company: Company) -> CompanyStats:
+        """
+        Run the full pipeline for a single company.
+
+        Returns the CompanyStats recorded for this run so the caller
+        can inspect results without holding a reference to the report.
+        """
         logger.info("-----------------------------------------------")
         logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
         logger.info("-----------------------------------------------")
 
-        logger.info("--- FETCHING DOCUMENTS ---")
-        raw_docs = _fetch_raw_documents(company, self.date_from, self.date_to, self.exclude)
+        stats     = self.report.start_company(company.ticker)
+        t_start   = time.perf_counter()
 
-        logger.info("--- DEDUPLICATING DOCUMENTS ---")
-        raw_docs = _deduplicate_documents(raw_docs)
-
-        logger.info("--- DOWNLOADING STATEMENTS ---")
-        raw_statements = _download_statements(raw_docs)
-
-        logger.info("--- TRANSFORMING STATEMENTS ---")
-        clean_statements = _transform_statements(raw_statements)
-
-        logger.info("--- LOADING INTO COMPANY ---")
-        for clean_fs in clean_statements:
-            company.add_statement(clean_fs)
-
-        logger.info("--- SAVING TO EXCEL ---")
         try:
-            export_company_to_excel(
-                company,
-                Path(f"data/output/{company.ticker}.xlsx")
-            )
-        except Exception as e:
-            logger.error(
-                f"Couldn't save company {company.name} to Excel. "
-                f"{type(e).__name__}: {e}"
+            logger.info("--- FETCHING DOCUMENTS ---")
+            raw_docs = _fetch_raw_documents(
+                company, self.date_from, self.date_to, self.exclude, stats, self.report
             )
 
+            logger.info("--- DEDUPLICATING DOCUMENTS ---")
+            raw_docs = _deduplicate_documents(raw_docs)
 
-def load_financial_statements(
-    company: Company,
-    date_from: date,
-    date_to: date,
-    exclude: List[str] = list()
-) -> None:
-    """Convenience wrapper kept for backwards compatibility."""
-    FinancialStatementPipeline(date_from, date_to, exclude).run(company)
+            logger.info("--- DOWNLOADING STATEMENTS ---")
+            raw_statements = _download_statements(raw_docs, stats, self.report)
+
+            logger.info("--- TRANSFORMING STATEMENTS ---")
+            clean_statements = _transform_statements(raw_statements, stats, self.report)
+
+            logger.info("--- LOADING INTO COMPANY ---")
+            for clean_fs in clean_statements:
+                company.add_statement(clean_fs)
+
+            logger.info("--- SAVING TO EXCEL ---")
+            try:
+                export_company_to_excel(
+                    company,
+                    Path(f"data/output/{company.ticker}.xlsx")
+                )
+                stats.statements_loaded = len(clean_statements)
+            except Exception as e:
+                error = ETLError(
+                    stage="load",
+                    ticker=stats.ticker,
+                    error_type=type(e).__name__,
+                    message=str(e),
+                )
+                self.report.add_error(error)
+                logger.error(
+                    f"Couldn't save company {company.name} to Excel. "
+                    f"{type(e).__name__}: {e}"
+                )
+
+        finally:
+            stats.duration_seconds = time.perf_counter() - t_start
+
+        return stats
 
 
 if __name__ == "__main__":
     companies = Companies()
     companies.load_from_excel("data/input/companies.xlsx")
 
+    report = PipelineReport()
     pipeline = FinancialStatementPipeline(
         date_from=PIPELINE_DATE_FROM,
         date_to=PIPELINE_DATE_TO,
-        exclude=EXCLUDE_KEYWORDS
+        exclude=EXCLUDE_KEYWORDS,
+        report=report,
     )
 
-    for company in companies:
+    for company in list(companies.by_ticker.values())[:2]:
         try:
             pipeline.run(company)
         except Exception as e:
@@ -242,3 +301,5 @@ if __name__ == "__main__":
                 f"Pipeline failed for {company.name}. "
                 f"{type(e).__name__}: {e}"
             )
+
+    logger.info(report.summary())
