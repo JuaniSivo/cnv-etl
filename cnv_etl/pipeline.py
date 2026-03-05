@@ -1,6 +1,6 @@
 import time
 from datetime import date
-from typing import List
+from typing import List, Literal, Optional
 from pathlib import Path
 
 from cnv_etl.logging_config import setup_logging, get_logger
@@ -16,11 +16,19 @@ from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statemen
 from cnv_etl.transformers.dates import parse_period_end_date_from_description, parse_cnv_datetime
 from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel, export_report_to_excel
+from cnv_etl.loaders.sqlite import SQLiteLoader
 from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
 from cnv_etl.errors import ETLError, CompanyStats, PipelineReport
 
 setup_logging()
 logger = get_logger(__name__)
+
+OutputMode = Literal["excel", "sqlite", "both"]
+RunMode    = Literal["overwrite", "update"]
+
+_DEFAULT_DB_PATH    = Path("data/output/cnv.db")
+_DEFAULT_EXCEL_DIR  = Path("data/output/excel")
+_DEFAULT_REPORT_DIR  = Path("data/output/report")
 
 
 # ---------------------------------------------------------------------------
@@ -29,11 +37,10 @@ logger = get_logger(__name__)
 
 def _deduplicate_documents(raw_docs: List[RawDocument]) -> List[RawDocument]:
     """
-    For each period end date, keep only one document using these rules:
+    For each period end date, keep only one document:
       1. Prefer Consolidated over Separate.
-      2. Among documents of the same type, keep the most recent submission date.
-
-    Documents with no parseable period end date are always kept as-is.
+      2. Among same type, keep the most recent submission date.
+    Documents with no parseable period end date are kept as-is.
     """
     undated = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is None]
     dated   = [d for d in raw_docs if parse_period_end_date_from_description(d.document_description) is not None]
@@ -67,10 +74,7 @@ def _transform_statements(
     stats: CompanyStats,
     report: PipelineReport,
 ) -> List[CleanFinancialStatement]:
-    """
-    Transform raw financial statements into clean domain objects.
-    Logs, records, and skips any statement that fails transformation.
-    """
+    """Transform raw statements, recording any failures in the report."""
     clean_statements: List[CleanFinancialStatement] = []
 
     for raw_fs in raw_statements:
@@ -78,7 +82,7 @@ def _transform_statements(
             clean_fs = raw_to_clean_financial_statement(raw_fs)
             clean_statements.append(clean_fs)
             stats.statements_transformed += 1
-            logger.debug(f"  Transformed statement '{raw_fs.document_description}'")
+            logger.debug(f"  Transformed '{raw_fs.document_description}'")
         except Exception as e:
             report.add_error(ETLError(
                 stage="transform",
@@ -105,21 +109,21 @@ def _scrape_company(
     date_from: date,
     date_to: date,
     exclude: List[str],
+    existing_ids: set[int],
     stats: CompanyStats,
     report: PipelineReport,
 ) -> List[RawFinancialStatement]:
     """
-    Open one browser session, fetch the documents table, deduplicate,
-    then download every statement — all before closing the driver.
-
-    Returns the list of successfully downloaded RawFinancialStatements.
+    Open one browser session, fetch + deduplicate the documents table,
+    filter out already-stored documents (update mode), then download
+    the remaining statements — all before closing the driver.
     """
     raw_statements: List[RawFinancialStatement] = []
 
     with driver_session() as driver:
         navigator = CNVNavigator(driver)
 
-        # --- Fetch documents table ---
+        # --- Fetch ---
         logger.info("--- FETCHING DOCUMENTS ---")
         try:
             header, rows = navigator.open_documents_table(str(company.id), date_from, date_to)
@@ -131,21 +135,30 @@ def _scrape_company(
                 error_type=type(e).__name__,
                 message=str(e),
             ))
-            logger.error(
-                f"Failed to fetch documents for {company.ticker}. "
-                f"{type(e).__name__}: {e}"
-            )
+            logger.error(f"Failed to fetch documents for {company.ticker}. {type(e).__name__}: {e}")
             return []
 
         logger.info(f"Found {len(raw_docs)} documents for {company.ticker}")
         for i, doc in enumerate(raw_docs, start=1):
             logger.info(f"  {i}. {doc.document_description}")
 
-        # --- Deduplicate (pure logic, no driver needed) ---
+        # --- Deduplicate ---
         logger.info("--- DEDUPLICATING DOCUMENTS ---")
         raw_docs = _deduplicate_documents(raw_docs)
 
-        # --- Download each statement in the same session ---
+        # --- Filter already-stored (update mode) ---
+        if existing_ids:
+            before = len(raw_docs)
+            raw_docs = [d for d in raw_docs if int(d.document_id) not in existing_ids]
+            skipped = before - len(raw_docs)
+            if skipped:
+                logger.info(f"  Skipped {skipped} already-stored document(s)")
+
+        if not raw_docs:
+            logger.info("  Nothing new to download.")
+            return []
+
+        # --- Download ---
         logger.info("--- DOWNLOADING STATEMENTS ---")
         for i, raw_doc in enumerate(raw_docs, start=1):
             raw_fs = RawFinancialStatement(
@@ -197,33 +210,76 @@ def _scrape_company(
 
 class FinancialStatementPipeline:
     """
-    Orchestrates the full ETL pipeline for a single company:
-      1. Scrape documents table and download all statements (one browser session)
-      2. Transform raw statements into clean domain objects
-      3. Load clean statements into the company and export to Excel
+    Orchestrates the full ETL pipeline for a single company.
 
-    Each run records results in the shared PipelineReport passed at
-    construction time. If no report is provided, a new one is created.
+    Parameters
+    ----------
+    date_from : date
+        Start of the document search window.
+    date_to : date
+        End of the document search window.
+    exclude : list[str]
+        Keywords — documents whose description contains any of these
+        are filtered out before downloading.
+    run_mode : 'overwrite' | 'update'
+        overwrite — replace existing data for the company.
+        update    — skip statements already present in the DB.
+    output : 'excel' | 'sqlite' | 'both'
+        Where to persist clean statements.
+    db_path : Path, optional
+        SQLite file path. Only used when output is 'sqlite' or 'both'.
+    report : PipelineReport, optional
+        Shared report; a new one is created if not provided.
     """
 
     def __init__(
         self,
-        date_from: date,
-        date_to: date,
-        exclude: List[str],
-        report: PipelineReport | None = None,
+        date_from:  date,
+        date_to:    date,
+        exclude:    List[str],
+        run_mode:   RunMode    = "overwrite",
+        output:     OutputMode = "excel",
+        db_path:    Optional[Path] = None,
+        report:     Optional[PipelineReport] = None,
     ) -> None:
         self.date_from = date_from
         self.date_to   = date_to
         self.exclude   = exclude
+        self.run_mode  = run_mode
+        self.output    = output
         self.report    = report or PipelineReport()
+
+        # Initialise SQLite loader only when needed
+        self._db: Optional[SQLiteLoader] = None
+        if output in ("sqlite", "both"):
+            resolved_db = db_path or _DEFAULT_DB_PATH
+            self._db = SQLiteLoader(resolved_db, overwrite=(run_mode == "overwrite"))
+
+    # ------------------------------------------------------------------ #
+    # Lifecycle                                                            #
+    # ------------------------------------------------------------------ #
+
+    def close(self) -> None:
+        """Flush and close the SQLite connection if open."""
+        if self._db:
+            self._db.close()
+            self._db = None
+
+    def __enter__(self) -> "FinancialStatementPipeline":
+        return self
+
+    def __exit__(self, *_) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------ #
+    # Run                                                                  #
+    # ------------------------------------------------------------------ #
 
     def run(self, company: Company) -> CompanyStats:
         """
         Run the full pipeline for a single company.
 
-        Returns the CompanyStats recorded for this run so the caller
-        can inspect results without holding a reference to the report.
+        Returns the CompanyStats recorded for this run.
         """
         logger.info("-----------------------------------------------")
         logger.info(f"Empresa: {company.name} | Ticker: {company.ticker}")
@@ -233,42 +289,74 @@ class FinancialStatementPipeline:
         t_start = time.perf_counter()
 
         try:
-            # Single browser session for fetch + download
+            # In update mode, ask the DB which documents we already have
+            existing_ids: set[int] = set()
+            if self.run_mode == "update" and self._db is not None:
+                existing_ids = self._db.get_existing_document_ids(company.id)
+                logger.info(f"  Update mode: {len(existing_ids)} document(s) already stored")
+
             raw_statements = _scrape_company(
-                company, self.date_from, self.date_to, self.exclude, stats, self.report
+                company, self.date_from, self.date_to, self.exclude,
+                existing_ids, stats, self.report,
             )
 
             logger.info("--- TRANSFORMING STATEMENTS ---")
             clean_statements = _transform_statements(raw_statements, stats, self.report)
 
-            logger.info("--- LOADING INTO COMPANY ---")
+            logger.info("--- LOADING ---")
             for clean_fs in clean_statements:
                 company.add_statement(clean_fs)
 
-            logger.info("--- SAVING TO EXCEL ---")
-            try:
-                export_company_to_excel(
-                    company,
-                    Path(f"data/output/{company.ticker}.xlsx")
-                )
-                stats.statements_loaded = len(clean_statements)
-            except Exception as e:
-                report_error = ETLError(
-                    stage="load",
-                    ticker=stats.ticker,
-                    error_type=type(e).__name__,
-                    message=str(e),
-                )
-                self.report.add_error(report_error)
-                logger.error(
-                    f"Couldn't save {company.name} to Excel. "
-                    f"{type(e).__name__}: {e}"
-                )
+            self._load_company(company, clean_statements, stats)
 
         finally:
             stats.duration_seconds = time.perf_counter() - t_start
 
         return stats
+
+    # ------------------------------------------------------------------ #
+    # Private                                                              #
+    # ------------------------------------------------------------------ #
+
+    def _load_company(
+        self,
+        company: Company,
+        clean_statements: List[CleanFinancialStatement],
+        stats: CompanyStats,
+    ) -> None:
+        """Persist clean statements to the configured output(s)."""
+
+        if self.output in ("excel", "both"):
+            try:
+                export_company_to_excel(
+                    company,
+                    _DEFAULT_EXCEL_DIR / f"{company.ticker}.xlsx",
+                )
+                if self.output == "excel":
+                    stats.statements_loaded = len(clean_statements)
+            except Exception as e:
+                self.report.add_error(ETLError(
+                    stage="load",
+                    ticker=stats.ticker,
+                    error_type=type(e).__name__,
+                    message=f"Excel export failed: {e}",
+                ))
+                logger.error(f"Excel export failed for {company.ticker}. {type(e).__name__}: {e}")
+
+        if self.output in ("sqlite", "both") and self._db is not None:
+            try:
+                self._db.upsert_company(company)
+                for stmt in clean_statements:
+                    self._db.upsert_statement(company.id, stmt)
+                stats.statements_loaded = len(clean_statements)
+            except Exception as e:
+                self.report.add_error(ETLError(
+                    stage="load",
+                    ticker=stats.ticker,
+                    error_type=type(e).__name__,
+                    message=f"SQLite upsert failed: {e}",
+                ))
+                logger.error(f"SQLite load failed for {company.ticker}. {type(e).__name__}: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -280,25 +368,24 @@ if __name__ == "__main__":
     companies.load_from_excel("data/input/companies.xlsx")
 
     report = PipelineReport()
-    pipeline = FinancialStatementPipeline(
+
+    with FinancialStatementPipeline(
         date_from=PIPELINE_DATE_FROM,
         date_to=PIPELINE_DATE_TO,
         exclude=EXCLUDE_KEYWORDS,
+        run_mode="update",
+        output="sqlite",
         report=report,
-    )
-
-    for company in companies:
-        try:
-            pipeline.run(company)
-        except Exception as e:
-            logger.error(
-                f"Pipeline failed for {company.name}. "
-                f"{type(e).__name__}: {e}"
-            )
+    ) as pipeline:
+        for company in companies:
+            try:
+                pipeline.run(company)
+            except Exception as e:
+                logger.error(f"Pipeline failed for {company.name}. {type(e).__name__}: {e}")
 
     logger.info(report.summary())
 
     try:
-        export_report_to_excel(report, Path("data/output/pipeline_report.xlsx"))
+        export_report_to_excel(report, _DEFAULT_REPORT_DIR / "pipeline_report.xlsx")
     except Exception as e:
         logger.error(f"Could not save pipeline report. {type(e).__name__}: {e}")
