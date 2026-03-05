@@ -1,3 +1,9 @@
+"""
+Core ETL pipeline for cnv_etl.
+
+Entry point: python -m cnv_etl  (see cnv_etl/cli.py)
+"""
+
 import time
 from datetime import date
 from typing import List, Literal, Optional
@@ -15,9 +21,8 @@ from cnv_etl.parsing.statement_values import StatementValuesParser
 from cnv_etl.transformers.raw_to_clean_fs import raw_to_clean_financial_statement
 from cnv_etl.transformers.dates import parse_period_end_date_from_description, parse_cnv_datetime
 from cnv_etl.transformers.literals import parse_statements_type_from_description
-from cnv_etl.loaders.excel import export_company_to_excel, export_report_to_excel
+from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.loaders.sqlite import SQLiteLoader
-from cnv_etl.config import PIPELINE_DATE_FROM, PIPELINE_DATE_TO, EXCLUDE_KEYWORDS
 from cnv_etl.errors import ETLError, CompanyStats, PipelineReport
 
 setup_logging()
@@ -26,9 +31,8 @@ logger = get_logger(__name__)
 OutputMode = Literal["excel", "sqlite", "both"]
 RunMode    = Literal["overwrite", "update"]
 
-_DEFAULT_DB_PATH    = Path("data/output/cnv.db")
-_DEFAULT_EXCEL_DIR  = Path("data/output/excel")
-_DEFAULT_REPORT_DIR  = Path("data/output/report")
+_DEFAULT_DB_PATH   = Path("data/output/cnv.db")
+_DEFAULT_EXCEL_DIR = Path("data/output")
 
 
 # ---------------------------------------------------------------------------
@@ -148,9 +152,9 @@ def _scrape_company(
 
         # --- Filter already-stored (update mode) ---
         if existing_ids:
-            before = len(raw_docs)
+            before   = len(raw_docs)
             raw_docs = [d for d in raw_docs if int(d.document_id) not in existing_ids]
-            skipped = before - len(raw_docs)
+            skipped  = before - len(raw_docs)
             if skipped:
                 logger.info(f"  Skipped {skipped} already-stored document(s)")
 
@@ -249,7 +253,6 @@ class FinancialStatementPipeline:
         self.output    = output
         self.report    = report or PipelineReport()
 
-        # Initialise SQLite loader only when needed
         self._db: Optional[SQLiteLoader] = None
         if output in ("sqlite", "both"):
             resolved_db = db_path or _DEFAULT_DB_PATH
@@ -289,7 +292,6 @@ class FinancialStatementPipeline:
         t_start = time.perf_counter()
 
         try:
-            # In update mode, ask the DB which documents we already have
             existing_ids: set[int] = set()
             if self.run_mode == "update" and self._db is not None:
                 existing_ids = self._db.get_existing_document_ids(company.id)
@@ -357,35 +359,3 @@ class FinancialStatementPipeline:
                     message=f"SQLite upsert failed: {e}",
                 ))
                 logger.error(f"SQLite load failed for {company.ticker}. {type(e).__name__}: {e}")
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    companies = Companies()
-    companies.load_from_excel("data/input/companies.xlsx")
-
-    report = PipelineReport()
-
-    with FinancialStatementPipeline(
-        date_from=PIPELINE_DATE_FROM,
-        date_to=PIPELINE_DATE_TO,
-        exclude=EXCLUDE_KEYWORDS,
-        run_mode="update",
-        output="sqlite",
-        report=report,
-    ) as pipeline:
-        for company in companies:
-            try:
-                pipeline.run(company)
-            except Exception as e:
-                logger.error(f"Pipeline failed for {company.name}. {type(e).__name__}: {e}")
-
-    logger.info(report.summary())
-
-    try:
-        export_report_to_excel(report, _DEFAULT_REPORT_DIR / "pipeline_report.xlsx")
-    except Exception as e:
-        logger.error(f"Could not save pipeline report. {type(e).__name__}: {e}")
