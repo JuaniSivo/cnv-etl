@@ -18,7 +18,7 @@ from pathlib import Path
 _LOG_DIR  = Path("logs")
 _LOG_FILE = _LOG_DIR / "cnv_etl.log"
 
-_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)-24s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _configured = False

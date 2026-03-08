@@ -21,7 +21,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webdriver import WebDriver
 
 
-def create_driver(headless: bool = False) -> WebDriver:
+def create_driver(headless: bool) -> WebDriver:
     """
     Create and configure a Selenium Chrome WebDriver.
 
@@ -48,7 +48,7 @@ def create_driver(headless: bool = False) -> WebDriver:
 
 
 @contextmanager
-def driver_session(headless: bool = False):
+def driver_session(headless: bool = True):
     """
     Context manager that creates a Chrome WebDriver and guarantees
     driver.quit() is called on exit, even if an exception is raised.
