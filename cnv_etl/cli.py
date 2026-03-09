@@ -23,9 +23,19 @@ python -m cnv_etl --mode overwrite --output both
 
 # Use a custom DB path
 python -m cnv_etl --output sqlite --db-path data/custom.db
+
+# Show summary table for last 5 runs
+python -m cnv_etl --stats
+
+# Show summary table for last 10 runs
+python -m cnv_etl --stats 10
+
+# Show summary table + cProfile output for last 5 runs
+python -m cnv_etl --stats --profile
 """
 
 import argparse
+import cProfile
 import sys
 from datetime import date
 from pathlib import Path
@@ -36,6 +46,8 @@ from cnv_etl.models.company import Companies
 from cnv_etl.pipeline import FinancialStatementPipeline
 from cnv_etl.loaders.excel import export_report_to_excel
 from cnv_etl.errors import PipelineReport
+from cnv_etl.profiling.profiler import ProfilingStore
+from cnv_etl.profiling.run_stats import RunStats
 from cnv_etl.config import (
     PIPELINE_DATE_FROM,
     PIPELINE_DATE_TO,
@@ -48,7 +60,7 @@ logger = get_logger(__name__)
 _DEFAULT_COMPANIES_PATH = Path("data/input/companies.xlsx")
 _DEFAULT_OUTPUT_DIR     = Path("data/output")
 _DEFAULT_DB_PATH        = Path("data/output/cnv.db")
-_DEFAULT_REPORT_DIR     = Path("data/output/report")
+_DEFAULT_STATS_N        = 5
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +145,29 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--stats",
+        nargs="?",
+        const=_DEFAULT_STATS_N,
+        type=int,
+        metavar="N",
+        default=None,
+        help=(
+            f"Print a summary table of the last N runs and exit. "
+            f"N defaults to {_DEFAULT_STATS_N} if omitted."
+        ),
+    )
+
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        default=False,
+        help=(
+            "When used with --stats, also print the top-20 functions "
+            "by cumulative time from the most recent run."
+        ),
+    )
+
     return parser
 
 
@@ -153,11 +188,20 @@ def _parse_date(value: str, flag: str) -> date:
         sys.exit(1)
 
 
-def _resolve_args(args: argparse.Namespace):
+def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     """
     Validate and resolve parsed arguments into typed values.
     Returns a plain namespace with cleaned-up fields.
     """
+    # --stats / --profile are read-only — skip pipeline validation
+    if args.stats is not None:
+        return argparse.Namespace(
+            stats   = args.stats,
+            profile = args.profile,
+            # mark as stats-only mode
+            stats_only = True,
+        )
+
     date_from = (
         _parse_date(args.date_from, "date-from")
         if args.date_from
@@ -189,12 +233,15 @@ def _resolve_args(args: argparse.Namespace):
         db_path = Path(args.db_path) if args.db_path else _DEFAULT_DB_PATH
 
     return argparse.Namespace(
-        tickers       = [t.upper() for t in args.company] if args.company else None,
-        date_from     = date_from,
-        date_to       = date_to,
-        mode          = args.mode,
-        output        = args.output,
-        db_path       = db_path,
+        stats_only     = False,
+        stats          = args.stats,
+        profile        = args.profile,
+        tickers        = [t.upper() for t in args.company] if args.company else None,
+        date_from      = date_from,
+        date_to        = date_to,
+        mode           = args.mode,
+        output         = args.output,
+        db_path        = db_path,
         companies_file = Path(args.companies_file),
     )
 
@@ -246,8 +293,22 @@ def main(argv: Optional[list[str]] = None) -> None:
     """
     parser = _build_parser()
     args   = _resolve_args(parser.parse_args(argv))
+    store  = ProfilingStore()
 
-    # Load companies
+    # ------------------------------------------------------------------ #
+    # Stats-only mode                                                      #
+    # ------------------------------------------------------------------ #
+
+    if args.stats_only:
+        store.print_summary(args.stats)
+        if args.profile:
+            store.print_profile()
+        return
+
+    # ------------------------------------------------------------------ #
+    # Pipeline mode                                                        #
+    # ------------------------------------------------------------------ #
+
     if not args.companies_file.exists():
         print(
             f"error: companies file not found: {args.companies_file}",
@@ -264,7 +325,6 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     selected = _select_companies(companies, args.tickers)
 
-    # Log run configuration
     logger.info("=" * 50)
     logger.info("cnv_etl pipeline starting")
     logger.info(f"  Companies : {', '.join(c.ticker for c in selected)}")
@@ -276,8 +336,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         logger.info(f"  DB path   : {args.db_path}")
     logger.info("=" * 50)
 
-    # Run pipeline
-    report = PipelineReport()
+    report  = PipelineReport()
+    profile = cProfile.Profile()
 
     with FinancialStatementPipeline(
         date_from = args.date_from,
@@ -288,6 +348,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         db_path   = args.db_path,
         report    = report,
     ) as pipeline:
+        profile.enable()
         for company in selected:
             try:
                 pipeline.run(company)
@@ -296,13 +357,23 @@ def main(argv: Optional[list[str]] = None) -> None:
                     f"Pipeline failed for {company.name}. "
                     f"{type(e).__name__}: {e}"
                 )
+        profile.disable()
 
-    # Summary
+    # ------------------------------------------------------------------ #
+    # Post-run: summary, report, profiling                                 #
+    # ------------------------------------------------------------------ #
+
     logger.info(report.summary())
 
     _DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        export_report_to_excel(report, _DEFAULT_REPORT_DIR / "pipeline_report.xlsx")
+        export_report_to_excel(report, _DEFAULT_OUTPUT_DIR / "pipeline_report.xlsx")
     except Exception as e:
         logger.error(f"Could not save pipeline report. {type(e).__name__}: {e}")
+
+    try:
+        run_stats = RunStats.from_pipeline_report(report)
+        store.save(run_stats, profile)
+    except Exception as e:
+        logger.error(f"Could not save profiling data. {type(e).__name__}: {e}")
