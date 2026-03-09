@@ -83,7 +83,7 @@ number_of_employees                    = ["1textbox16696", "1decimal20806"]
 enrichments_file = "data/input/enrichments.csv"
 
 [enrichment.companies.RIGO]
-fields = ["subscribed_shares_at_period_end", "equity_share_price_at_period_end"]
+fields = ["subscribed_shares_at_period_end", "equity_share_price_at_period_end", "free_float_percentage"]
 source = "file"
 
 
