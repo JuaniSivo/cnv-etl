@@ -19,6 +19,7 @@ class CompanyRunStats:
     """Per-company metrics extracted from CompanyStats."""
     ticker:                 str
     statements_downloaded:  int
+    statements_enriched:    int
     statements_transformed: int
     statements_loaded:      int
     duration_seconds:       float
@@ -28,6 +29,7 @@ class CompanyRunStats:
         return {
             "ticker":                 self.ticker,
             "statements_downloaded":  self.statements_downloaded,
+            "statements_enriched":    self.statements_enriched,
             "statements_transformed": self.statements_transformed,
             "statements_loaded":      self.statements_loaded,
             "duration_seconds":       round(self.duration_seconds, 2),
@@ -54,6 +56,7 @@ class RunStats:
     companies_succeeded : int
     companies_failed : int
     statements_downloaded : int
+    statements_enriched : int
     statements_transformed : int
     statements_loaded : int
     total_errors : int
@@ -66,6 +69,7 @@ class RunStats:
     companies_succeeded:    int
     companies_failed:       int
     statements_downloaded:  int
+    statements_enriched:    int
     statements_transformed: int
     statements_loaded:      int
     total_errors:           int
@@ -89,6 +93,7 @@ class RunStats:
             CompanyRunStats(
                 ticker=cs.ticker,
                 statements_downloaded=cs.statements_downloaded,
+                statements_enriched=cs.statements_enriched,
                 statements_transformed=cs.statements_transformed,
                 statements_loaded=cs.statements_loaded,
                 duration_seconds=cs.duration_seconds,
@@ -104,6 +109,7 @@ class RunStats:
             companies_succeeded=report.total_companies_succeeded,
             companies_failed=report.total_companies_failed,
             statements_downloaded=report.total_statements_downloaded,
+            statements_enriched=report.total_statements_enriched,
             statements_transformed=report.total_statements_transformed,
             statements_loaded=report.total_statements_loaded,
             total_errors=len(report.all_errors),
@@ -119,6 +125,7 @@ class RunStats:
             companies_succeeded=d["companies_succeeded"],
             companies_failed=d["companies_failed"],
             statements_downloaded=d["statements_downloaded"],
+            statements_enriched=d.get("statements_enriched", 0),
             statements_transformed=d["statements_transformed"],
             statements_loaded=d["statements_loaded"],
             total_errors=d["total_errors"],
@@ -145,6 +152,7 @@ class RunStats:
             "companies_succeeded":    self.companies_succeeded,
             "companies_failed":       self.companies_failed,
             "statements_downloaded":  self.statements_downloaded,
+            "statements_enriched":    self.statements_enriched,
             "statements_transformed": self.statements_transformed,
             "statements_loaded":      self.statements_loaded,
             "total_errors":           self.total_errors,

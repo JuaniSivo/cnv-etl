@@ -24,6 +24,11 @@ from cnv_etl.transformers.literals import parse_statements_type_from_description
 from cnv_etl.loaders.excel import export_company_to_excel
 from cnv_etl.loaders.sqlite import SQLiteLoader
 from cnv_etl.errors import ETLError, CompanyStats, PipelineReport
+from cnv_etl.enrichment import Enricher, FileSource
+from cnv_etl.config import (
+    ENRICHMENT_REGISTRY,
+    ENRICHMENTS_FILE_PATH,
+)
 
 setup_logging()
 logger = get_logger(__name__)
@@ -258,6 +263,11 @@ class FinancialStatementPipeline:
             resolved_db = db_path or _DEFAULT_DB_PATH
             self._db = SQLiteLoader(resolved_db, overwrite=(run_mode == "overwrite"))
 
+        self._enricher = Enricher(
+            registry=ENRICHMENT_REGISTRY,
+            source=FileSource(ENRICHMENTS_FILE_PATH),
+        )
+
     # ------------------------------------------------------------------ #
     # Lifecycle                                                            #
     # ------------------------------------------------------------------ #
@@ -300,6 +310,14 @@ class FinancialStatementPipeline:
             raw_statements = _scrape_company(
                 company, self.date_from, self.date_to, self.exclude,
                 existing_ids, stats, self.report,
+            )
+
+            logger.info("--- ENRICHING STATEMENTS ---")
+            raw_statements = self._enricher.enrich(
+                ticker=company.ticker,
+                statements=raw_statements,
+                stats=stats,
+                report=self.report,
             )
 
             logger.info("--- TRANSFORMING STATEMENTS ---")
