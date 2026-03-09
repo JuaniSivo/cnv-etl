@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 
-Stage = Literal["fetch", "download", "transform", "load"]
+Stage = Literal["fetch", "download", "enrich", "transform", "load"]
 
 
 @dataclass
@@ -63,6 +63,8 @@ class CompanyStats:
         Company ticker.
     statements_downloaded : int
         Number of raw statements successfully downloaded.
+    statements_enriched : int
+        Number of statements that had at least one field enriched.
     statements_transformed : int
         Number of statements successfully transformed.
     statements_loaded : int
@@ -74,6 +76,7 @@ class CompanyStats:
     """
     ticker:                  str
     statements_downloaded:   int             = 0
+    statements_enriched:     int             = 0
     statements_transformed:  int             = 0
     statements_loaded:       int             = 0
     duration_seconds:        float           = 0.0
@@ -87,6 +90,7 @@ class CompanyStats:
         return {
             "ticker":                 self.ticker,
             "statements_downloaded":  self.statements_downloaded,
+            "statements_enriched":    self.statements_enriched,
             "statements_transformed": self.statements_transformed,
             "statements_loaded":      self.statements_loaded,
             "duration_seconds":       round(self.duration_seconds, 2),
@@ -148,6 +152,10 @@ class PipelineReport:
         return sum(s.statements_downloaded for s in self.company_stats)
 
     @property
+    def total_statements_enriched(self) -> int:
+        return sum(s.statements_enriched for s in self.company_stats)
+
+    @property
     def total_statements_transformed(self) -> int:
         return sum(s.statements_transformed for s in self.company_stats)
 
@@ -180,6 +188,7 @@ class PipelineReport:
             f"{self.total_companies_failed} failed / "
             f"{self.total_companies_attempted} total",
             f"  Statements:   {self.total_statements_downloaded} downloaded  "
+            f"{self.total_statements_enriched} enriched  "
             f"{self.total_statements_transformed} transformed  "
             f"{self.total_statements_loaded} loaded",
             "-" * 60,
@@ -207,6 +216,7 @@ class PipelineReport:
             "total_companies_succeeded":   self.total_companies_succeeded,
             "total_companies_failed":      self.total_companies_failed,
             "total_statements_downloaded": self.total_statements_downloaded,
+            "total_statements_enriched":   self.total_statements_enriched,
             "total_statements_transformed":self.total_statements_transformed,
             "total_statements_loaded":     self.total_statements_loaded,
             "company_stats":               [s.to_dict() for s in self.company_stats],
