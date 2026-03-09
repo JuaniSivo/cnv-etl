@@ -185,3 +185,12 @@ false_values = ["No"]
 "PRUEBA ACIDA"                                                                     = "QuickRatio"
 "COBERTURA DE GASTOS FINANCIEROS"                                                  = "InterestCoverageRatio"
 "ROTACION DE ACTIVOS"                                                              = "AssetTurnover"
+
+
+# -----------------------------------------------------------------------------
+# Profiling
+# -----------------------------------------------------------------------------
+
+[profiling]
+data_dir       = "data/output/profiling"
+max_stored_runs = 20

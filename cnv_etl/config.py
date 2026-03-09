@@ -66,3 +66,11 @@ REPORTING_PERIOD:    dict[str, str] = _cfg["transformers"]["reporting_period"]
 STATEMENT_TYPE:      dict[str, str] = _cfg["transformers"]["statement_type"]
 ACCOUNTING_STANDARD: dict[str, str] = _cfg["transformers"]["accounting_standard"]
 TAXONOMY:            dict[str, str] = _cfg["transformers"]["taxonomy"]
+
+
+# ---------------------------------------------------------------------------
+# Profiling
+# ---------------------------------------------------------------------------
+
+PROFILING_DATA_DIR:    Path = Path(_cfg["profiling"]["data_dir"])
+PROFILING_MAX_RUNS:    int  = _cfg["profiling"]["max_stored_runs"]
