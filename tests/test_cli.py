@@ -36,12 +36,14 @@ class TestDateParsing:
 
     def test_valid_date_from(self):
         from datetime import date
-        args = _parse(["--date-from", "2023-01-01"])
+        # Pair with a date-to that is guaranteed to be after date-from
+        args = _parse(["--date-from", "2023-01-01", "--date-to", "2023-12-31"])
         assert args.date_from == date(2023, 1, 1)
 
     def test_valid_date_to(self):
         from datetime import date
-        args = _parse(["--date-to", "2023-12-31"])
+        # Pair with a date-from that is guaranteed to be before date-to
+        args = _parse(["--date-from", "2023-01-01", "--date-to", "2023-12-31"])
         assert args.date_to == date(2023, 12, 31)
 
     def test_invalid_date_from_exits(self):
