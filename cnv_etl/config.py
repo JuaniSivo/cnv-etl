@@ -74,3 +74,11 @@ TAXONOMY:            dict[str, str] = _cfg["transformers"]["taxonomy"]
 
 PROFILING_DATA_DIR:    Path = Path(_cfg["profiling"]["data_dir"])
 PROFILING_MAX_RUNS:    int  = _cfg["profiling"]["max_stored_runs"]
+
+
+# ---------------------------------------------------------------------------
+# Enrichment
+# ---------------------------------------------------------------------------
+
+ENRICHMENTS_FILE_PATH: Path             = Path(_cfg["enrichment"]["enrichments_file"])
+ENRICHMENT_REGISTRY:   dict[str, Any]   = _cfg["enrichment"].get("companies", {})

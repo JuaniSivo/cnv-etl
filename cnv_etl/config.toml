@@ -66,6 +66,27 @@ free_float_percentage                  = "1decimal46286"
 number_of_employees                    = ["1textbox16696", "1decimal20806"]
 
 
+
+# ---------------------------------------------------------------------------
+# Enrichment
+# ---------------------------------------------------------------------------
+# Registry of companies with known missing fields in the CNV web form.
+# Each entry declares which fields to enrich and where to source the values.
+#
+# Supported sources:
+#   "file" — read from the enrichments CSV (enrichments_file path below)
+#
+# fields must match RawFinancialStatement attribute names exactly.
+# ---------------------------------------------------------------------------
+
+[enrichment]
+enrichments_file = "data/input/enrichments.csv"
+
+[enrichment.companies.RIGO]
+fields = ["subscribed_shares_at_period_end", "equity_share_price_at_period_end"]
+source = "file"
+
+
 # -----------------------------------------------------------------------------
 # Transformers — mapping tables
 # -----------------------------------------------------------------------------
